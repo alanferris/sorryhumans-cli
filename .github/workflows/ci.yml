@@ -22,34 +22,42 @@ jobs:
         with:
           repository: alanferris/sorryhumans
           path: sorryhumans
-          # deploy key de solo-lectura del backend (secret configurado en repo)
           ssh-key: ${{ secrets.BACKEND_DEPLOY_KEY }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
+
+      # Venv 1: backend — fastapi + starlette 0.41.x (requirements.txt)
+      - name: Create backend venv
+        run: python -m venv sorryhumans/backend/.venv
 
       - name: Install backend deps
         working-directory: sorryhumans/backend
-        run: pip install -r requirements.txt uvicorn pytest httpx
+        run: .venv/bin/pip install -r requirements.txt uvicorn pytest httpx --quiet
 
-      - name: Install CLI deps
-        working-directory: sorryhumans-cli
-        run: pip install -e ".[dev]" requests pytest
-
-      - name: Run backend unit tests (smoke)
+      - name: Run backend unit tests
         working-directory: sorryhumans/backend
         env:
           SORRYHUMANS_STORE: memory
           ALLOW_FAKE_AUTH: "1"
-        run: pytest test_bus.py test_onboarding.py test_device_flow.py test_hive_ack.py -v
+        run: .venv/bin/pytest test_bus.py test_onboarding.py test_device_flow.py test_hive_ack.py test_hive_approval.py -v
 
+      # Venv 2: CLI — instala mcp[cli] → sse-starlette → starlette 1.x (sin pisar el backend)
+      - name: Create CLI venv
+        run: python -m venv sorryhumans-cli/.venv
+
+      - name: Install CLI deps
+        working-directory: sorryhumans-cli
+        run: .venv/bin/pip install -e ".[dev]" requests pytest --quiet
+
+      # El test arranca uvicorn con el Python DEL VENV DEL BACKEND para evitar el conflicto
       - name: Run CLI integration tests
         working-directory: sorryhumans-cli
         env:
           BACKEND_DIR: ${{ github.workspace }}/sorryhumans/backend
+          BACKEND_PYTHON: ${{ github.workspace }}/sorryhumans/backend/.venv/bin/python
           SORRYHUMANS_STORE: memory
           ALLOW_FAKE_AUTH: "1"
-        run: pytest tests/test_cli_integration.py -v
+        run: .venv/bin/pytest tests/test_cli_integration.py -v

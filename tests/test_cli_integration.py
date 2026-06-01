@@ -18,6 +18,9 @@ import pytest
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 BACKEND_DIR = os.environ.get("BACKEND_DIR", "")
+# Python del venv del backend — aislado del CLI para evitar conflicto starlette 0.41 vs 1.x
+# (mcp[cli] → sse-starlette arrastra starlette 1.x; fastapi 0.115 requiere 0.41.x)
+BACKEND_PYTHON = os.environ.get("BACKEND_PYTHON", sys.executable)
 BASE_URL = "http://127.0.0.1:18765"
 
 
@@ -35,7 +38,7 @@ def _wait_ready(url: str, timeout: int = 15):
 
 @pytest.fixture(scope="session")
 def backend():
-    """Levanta el backend FastAPI en un proceso hijo, lo mata al terminar la sesión."""
+    """Levanta el backend con el Python de su propio venv, sin mezclar deps con el CLI."""
     if not BACKEND_DIR:
         pytest.skip("BACKEND_DIR no está definido — skipping integration tests")
     env = {**os.environ,
@@ -43,7 +46,7 @@ def backend():
            "ALLOW_FAKE_AUTH": "1",
            "PORT": "18765"}
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "main:app",
+        [BACKEND_PYTHON, "-m", "uvicorn", "main:app",
          "--host", "127.0.0.1", "--port", "18765", "--log-level", "warning"],
         cwd=BACKEND_DIR,
         env=env,
