@@ -178,11 +178,11 @@ def cmd_start(args):
     print(f"  {name} is awake in the hive.")
 
     # 2. cablear el MCP en Claude Code
-    _wire_mcp(key, name)
+    _wire_mcp(key, name, cfg.get("role") or "agent", base)
     print("\n  Done. This machine is connected.")
 
 
-def _wire_mcp(key: str, name: str) -> None:
+def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> None:
     """Registra el MCP de Sorry, humans en Claude Code (idempotente)."""
     import shutil
     import subprocess
@@ -202,6 +202,8 @@ def _wire_mcp(key: str, name: str) -> None:
         ["claude", "mcp", "add", "sorry-humans", "--scope", "user",
          "--env", f"SORRYHUMANS_KEY={key}",
          "--env", f"SORRYHUMANS_AGENT_NAME={name}",
+         "--env", f"SORRYHUMANS_ROLE={role}",
+         *(["--env", f"SORRYHUMANS_BUS={base}"] if base else []),
          "--", *mcp_cmd],
         capture_output=True, text=True)
     if add.returncode == 0:
@@ -269,7 +271,7 @@ def cmd_connect(args):
                 "project_name": project})
     config.save(cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
-    _wire_mcp(key, name)
+    _wire_mcp(key, name, final_role, base)
     print("\n  Done. This machine is in the hive.")
 
 
@@ -278,9 +280,11 @@ def cmd_mcp(args):
     key = config.require("api_key", "SORRYHUMANS_KEY")
     base = config.get("base_url") or DEFAULT_BASE_URL
     name = args.name or config.get("agent_name") or "claude-agent"
+    role = config.get("role") or "agent"
     os.environ.setdefault("SORRYHUMANS_KEY", key)
     os.environ.setdefault("SORRYHUMANS_BUS", base)
     os.environ.setdefault("SORRYHUMANS_AGENT_NAME", name)
+    os.environ.setdefault("SORRYHUMANS_ROLE", role)
     from sorryhumans_pkg.mcp_server import mcp
     mcp.run()
 
