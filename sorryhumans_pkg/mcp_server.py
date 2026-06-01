@@ -72,8 +72,34 @@ INSTRUCTIONS = _SHARED + (_LEADER if ROLE == "leader" else _AGENT)
 
 mcp = FastMCP("sorry-humans", instructions=INSTRUCTIONS)
 
+# Cursor persistente: sobrevive reinicios del proceso MCP, así no se reenvían
+# mensajes viejos al reabrir Claude Code. Un archivo por agente (por si la misma
+# máquina conecta varios).
+_CURSOR_FILE = os.path.join(
+    os.path.expanduser("~/.sorryhumans"),
+    "mcp_cursor_" + "".join(c for c in AGENT_NAME if c.isalnum() or c in "-_") or "default",
+)
+
+
+def _load_cursor() -> str:
+    try:
+        with open(_CURSOR_FILE) as f:
+            return f.read().strip() or "0"
+    except Exception:
+        return "0"
+
+
+def _save_cursor(cursor: str) -> None:
+    try:
+        os.makedirs(os.path.dirname(_CURSOR_FILE), exist_ok=True)
+        with open(_CURSOR_FILE, "w") as f:
+            f.write(str(cursor))
+    except Exception:
+        pass
+
+
 # Estado del agente en este proceso (se registra al primer uso).
-_state = {"agent_id": None, "cursor": "0"}
+_state = {"agent_id": None, "cursor": _load_cursor()}
 
 
 def _headers() -> dict:
@@ -87,7 +113,7 @@ async def _ensure_registered(client: httpx.AsyncClient) -> str:
     if _state["agent_id"]:
         return _state["agent_id"]
     r = await client.post(f"{BUS}/v1/agents/register", headers=_headers(),
-                          json={"name": AGENT_NAME, "capabilities": ["claude"]})
+                          json={"name": AGENT_NAME, "capabilities": ["claude"], "role": ROLE})
     r.raise_for_status()
     _state["agent_id"] = r.json()["agent_id"]
     return _state["agent_id"]
@@ -129,6 +155,7 @@ async def check_messages(wait_seconds: int = 20) -> dict:
         data = r.json()
         if data.get("cursor"):
             _state["cursor"] = str(data["cursor"])
+            _save_cursor(_state["cursor"])
         msgs = [{"from": m["from_agent"], "type": m["type"], "body": m["body"],
                  "ref": m.get("message_id")} for m in data["messages"]]
         if not msgs:
