@@ -137,6 +137,10 @@ def main():
     p_mcp.add_argument("--name", default=None, help="Agent name")
     p_mcp.set_defaults(func=cmd_mcp)
 
+    p_watch = sub.add_parser("watch", help="Stay awake on the hive: wake the moment a task arrives", add_help=False)
+    p_watch.add_argument("--auto", action="store_true", help="Auto-handle tasks with the local agent (claude headless), governed by local permissions")
+    p_watch.set_defaults(func=cmd_watch)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -287,6 +291,92 @@ def cmd_mcp(args):
     os.environ.setdefault("SORRYHUMANS_ROLE", role)
     from sorryhumans_pkg.mcp_server import mcp
     mcp.run()
+
+
+def _notify(title: str, body: str) -> None:
+    """Best-effort desktop notification (Linux notify-send / macOS osascript / bell)."""
+    import shutil
+    import subprocess
+    snippet = (body or "")[:200]
+    try:
+        if shutil.which("notify-send"):
+            subprocess.run(["notify-send", title, snippet], capture_output=True)
+        elif shutil.which("osascript"):
+            subprocess.run(["osascript", "-e",
+                            f'display notification {json.dumps(snippet)} with title {json.dumps(title)}'],
+                           capture_output=True)
+        else:
+            sys.stderr.write("\a")
+            sys.stderr.flush()
+    except Exception:
+        pass
+
+
+def _inbox_append(m: dict) -> None:
+    path = config.CONFIG_PATH.parent / "inbox.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as f:
+        f.write(json.dumps(m) + "\n")
+
+
+def _auto_handle(base, api_key, agent_id, sender, task_id, body) -> None:
+    """Opt-in: wake the local agent (claude headless) to do the task, then reply
+    with the result. Runs under THIS machine's local permissions — governed."""
+    import shutil
+    import subprocess
+    if not shutil.which("claude"):
+        return
+    try:
+        out = subprocess.run(["claude", "-p", body], capture_output=True, text=True, timeout=900)
+        result = (out.stdout or "").strip()[:6000] or "(done, no output)"
+    except Exception as e:
+        result = f"(auto-handle failed: {e})"
+    try:
+        client.send(base, api_key, from_agent=agent_id, to_agent=sender,
+                    msg_type="result", body=result, ref=task_id)
+    except Exception:
+        pass
+
+
+def cmd_watch(args):
+    """Stay awake on the hive: long-poll for tasks and react the moment one arrives.
+
+    On a task addressed to this agent: send an ack (the sender learns a live agent
+    took it), notify the human, and drop it in the local inbox. With --auto, also
+    wake the local agent (claude headless) to do it and reply the result.
+    """
+    import time
+    api_key = config.require("api_key", "SORRYHUMANS_KEY")
+    agent_id = config.require("agent_id")
+    base = _base_url()
+    name = config.get("agent_name") or "agent"
+    auto = getattr(args, "auto", False)
+    since = config.get("watch_cursor") or "0"
+    print(f"{name} is watching the hive (auto={'on' if auto else 'off'}). Ctrl-C to stop.")
+    while True:
+        try:
+            result = client.listen_once(base, api_key, agent_id, since)
+        except Exception:
+            time.sleep(3)
+            continue
+        since = result.get("cursor", since)
+        cfg = config.load()
+        cfg["watch_cursor"] = since
+        config.save(cfg)
+        for m in result.get("messages", []):
+            if m.get("type") != "task" or m.get("from_agent") == agent_id:
+                continue
+            task_id, sender, body = m.get("message_id"), m.get("from_agent"), m.get("body", "")
+            try:  # ack = wake-confirmation (sender learns a live agent took it)
+                client.send(base, api_key, from_agent=agent_id, to_agent=sender,
+                            msg_type="ack", body="received", ref=task_id)
+            except Exception:
+                pass
+            _notify("Sorry, humans — new task", body)
+            _inbox_append(m)
+            print(f"  [task from {sender}] {body[:120]}")
+            if auto:
+                _auto_handle(base, api_key, agent_id, sender, task_id, body)
 
 
 if __name__ == "__main__":
