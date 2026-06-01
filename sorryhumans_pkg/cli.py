@@ -352,6 +352,7 @@ def cmd_watch(args):
     name = config.get("agent_name") or "agent"
     auto = getattr(args, "auto", False)
     since = config.get("watch_cursor") or "0"
+    pending = {}  # task_id -> (sender, body): tasks sensibles esperando aprobación humana (--auto)
     print(f"{name} is watching the hive (auto={'on' if auto else 'off'}). Ctrl-C to stop.")
     while True:
         try:
@@ -364,19 +365,29 @@ def cmd_watch(args):
         cfg["watch_cursor"] = since
         config.save(cfg)
         for m in result.get("messages", []):
-            if m.get("type") != "task" or m.get("from_agent") == agent_id:
-                continue
-            task_id, sender, body = m.get("message_id"), m.get("from_agent"), m.get("body", "")
-            try:  # ack = wake-confirmation (sender learns a live agent took it)
-                client.send(base, api_key, from_agent=agent_id, to_agent=sender,
-                            msg_type="ack", body="received", ref=task_id)
-            except Exception:
-                pass
-            _notify("Sorry, humans — new task", body)
-            _inbox_append(m)
-            print(f"  [task from {sender}] {body[:120]}")
-            if auto:
-                _auto_handle(base, api_key, agent_id, sender, task_id, body)
+            mtype = m.get("type")
+            if mtype == "task" and m.get("from_agent") != agent_id:
+                task_id, sender, body = m.get("message_id"), m.get("from_agent"), m.get("body", "")
+                try:  # ack = wake-confirmation (sender learns a live agent took it)
+                    client.send(base, api_key, from_agent=agent_id, to_agent=sender,
+                                msg_type="ack", body="received", ref=task_id)
+                except Exception:
+                    pass
+                _notify("Sorry, humans — new task", body)
+                _inbox_append(m)
+                print(f"  [task from {sender}] {body[:120]}")
+                if auto:
+                    if m.get("sensitive"):
+                        pending[task_id] = (sender, body)
+                        print("  -> sensitive: waiting for human approval before running.")
+                    else:
+                        _auto_handle(base, api_key, agent_id, sender, task_id, body)
+            elif mtype == "approval" and auto:
+                ref = m.get("ref")
+                if ref in pending:
+                    sender, body = pending.pop(ref)
+                    print(f"  -> approved: running task {ref}.")
+                    _auto_handle(base, api_key, agent_id, sender, ref, body)
 
 
 if __name__ == "__main__":
