@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "feat/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  integration:
+    name: Integration tests (CLI + backend in-memory)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sorryhumans-cli
+        uses: actions/checkout@v4
+        with:
+          path: sorryhumans-cli
+
+      - name: Checkout sorryhumans (backend)
+        uses: actions/checkout@v4
+        with:
+          repository: alanferris/sorryhumans
+          path: sorryhumans
+          # deploy key de solo-lectura del backend (secret configurado en repo)
+          ssh-key: ${{ secrets.BACKEND_DEPLOY_KEY }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend deps
+        working-directory: sorryhumans/backend
+        run: pip install -r requirements.txt uvicorn pytest httpx
+
+      - name: Install CLI deps
+        working-directory: sorryhumans-cli
+        run: pip install -e ".[dev]" requests pytest
+
+      - name: Run backend unit tests (smoke)
+        working-directory: sorryhumans/backend
+        env:
+          SORRYHUMANS_STORE: memory
+          ALLOW_FAKE_AUTH: "1"
+        run: pytest test_bus.py test_onboarding.py test_device_flow.py test_hive_ack.py -v
+
+      - name: Run CLI integration tests
+        working-directory: sorryhumans-cli
+        env:
+          BACKEND_DIR: ${{ github.workspace }}/sorryhumans/backend
+          SORRYHUMANS_STORE: memory
+          ALLOW_FAKE_AUTH: "1"
+        run: pytest tests/test_cli_integration.py -v
