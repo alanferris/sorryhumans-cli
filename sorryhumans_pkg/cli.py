@@ -232,7 +232,9 @@ def cmd_connect(args):
     role = (args.role or "agent").lower()
     if role not in ("leader", "agent"):
         role = "agent"
-    name = args.name or socket.gethostname()
+    # El nombre identifica al AGENTE (la IA), no al humano: rol@maquina. Asi la
+    # hive nunca confunde al operador humano con su agente.
+    name = args.name or f"{role}@{socket.gethostname()}"
     base = _base_url()
 
     try:

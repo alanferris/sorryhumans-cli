@@ -6,7 +6,7 @@
 set -e
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.6-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.7-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 printf "\n${ORANGE}${BOLD}Sorry, humans.${RESET}\nSetting up your machine...\n\n"
