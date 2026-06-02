@@ -85,11 +85,14 @@ if [ -e /dev/tty ]; then
   [ "$ROLE" = "leader" ] || ROLE="agent"
   echo ""
   $RUN connect --role "$ROLE"
-  # Drop the user straight into Claude Code, in the hive.
+  # Drop the user straight into Claude Code, in the hive. exec + </dev/tty para
+  # que claude REEMPLACE al shell y sea dueño del terminal: como hijo de un 'sh'
+  # venido de un pipe (curl|sh) no queda en el foreground pgroup y la TUI (p.ej.
+  # el prompt de trust-folder) no recibe teclado y se cuelga.
   if command -v claude >/dev/null 2>&1; then
     printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
     sleep 1
-    claude </dev/tty || true
+    exec claude </dev/tty
   fi
 else
   printf "\n${BOLD}Done.${RESET} To connect, run: ${ORANGE}sorryhumans connect --role leader${RESET}\n"
