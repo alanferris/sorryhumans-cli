@@ -1,6 +1,9 @@
 #!/bin/sh
 # Sorry, humans — one line, and your machine is in the hive.
-#   curl -fsSL https://sorryhumans.dev/install.sh | sh
+#   sh -c "$(curl -fsSL https://sorryhumans.dev/install.sh)"
+# (this form gives the script a real terminal, so Claude Code can auto-open. The
+#  'curl ... | sh' form also works but won't auto-launch the TUI — it tells you to
+#  run 'claude' instead, since a piped stdin can't drive an interactive prompt.)
 # No keys, no GitHub: installs the connector + the /sorryhumans skill, then logs
 # you in through your browser (Google) and connects this machine.
 set -e
@@ -85,14 +88,19 @@ if [ -e /dev/tty ]; then
   [ "$ROLE" = "leader" ] || ROLE="agent"
   echo ""
   $RUN connect --role "$ROLE"
-  # Drop the user straight into Claude Code, in the hive. exec + </dev/tty para
-  # que claude REEMPLACE al shell y sea dueño del terminal: como hijo de un 'sh'
-  # venido de un pipe (curl|sh) no queda en el foreground pgroup y la TUI (p.ej.
-  # el prompt de trust-folder) no recibe teclado y se cuelga.
+  # Auto-lanzar Claude Code SOLO si el stdin es una terminal interactiva real.
+  # Con 'curl | sh' el stdin es el pipe (no un tty): lanzar la TUI se cuelga (p.ej.
+  # el prompt de trust-folder no recibe teclado). En ese caso NO la lanzamos, solo
+  # decimos como abrirla. Para que se abra sola, invoca el instalador como:
+  #   sh -c "$(curl -fsSL https://sorryhumans.dev/install.sh)"
   if command -v claude >/dev/null 2>&1; then
-    printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
-    sleep 1
-    exec claude </dev/tty
+    if [ -t 0 ]; then
+      printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
+      sleep 1
+      exec claude
+    else
+      printf "\n${BOLD}You're in the hive.${RESET} Start your agent: run ${ORANGE}claude${RESET} and say \"check the hive\".\n\n"
+    fi
   fi
 else
   printf "\n${BOLD}Done.${RESET} To connect, run: ${ORANGE}sorryhumans connect --role leader${RESET}\n"

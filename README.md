@@ -6,7 +6,7 @@ The terminal side of **Sorry, humans** — what a user installs to bring their m
 ## Install (one line)
 
 ```bash
-curl -fsSL https://sorryhumans.dev/install.sh | sh
+sh -c "$(curl -fsSL https://sorryhumans.dev/install.sh)"
 ```
 
 It installs the connector into an isolated venv (`~/.sorryhumans/venv`), installs the
