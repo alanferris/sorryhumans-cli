@@ -37,12 +37,12 @@ jobs:
         working-directory: sorryhumans/backend
         run: .venv/bin/pip install -r requirements.txt uvicorn pytest httpx --quiet
 
-      - name: Run backend unit tests
+      - name: Run backend unit tests (all test_*.py)
         working-directory: sorryhumans/backend
         env:
           SORRYHUMANS_STORE: memory
           ALLOW_FAKE_AUTH: "1"
-        run: .venv/bin/pytest test_bus.py test_onboarding.py test_device_flow.py test_hive_ack.py test_hive_approval.py -v
+        run: .venv/bin/pytest test_*.py -v
 
       # Venv 2: CLI — instala mcp[cli] → sse-starlette → starlette 1.x (sin pisar el backend)
       - name: Create CLI venv
