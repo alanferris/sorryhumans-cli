@@ -85,11 +85,17 @@ if [ -e /dev/tty ]; then
   [ "$ROLE" = "leader" ] || ROLE="agent"
   echo ""
   $RUN connect --role "$ROLE"
-  # Drop the user straight into Claude Code, in the hive.
+  # Launch Claude Code only if stdin AND stdout are real ttys (i.e., not curl|sh).
+  # When piped (curl|sh), stdin is the pipe — Claude Code's TUI can't receive keyboard
+  # input even with </dev/tty, because the controlling terminal detection fails.
   if command -v claude >/dev/null 2>&1; then
-    printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
-    sleep 1
-    claude </dev/tty || true
+    if [ -t 0 ] && [ -t 1 ]; then
+      printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
+      sleep 1
+      exec claude
+    else
+      printf "\n${BOLD}Done!${RESET} Open Claude Code and say: ${ORANGE}check the hive${RESET}\n\n"
+    fi
   fi
 else
   printf "\n${BOLD}Done.${RESET} To connect, run: ${ORANGE}sorryhumans connect --role leader${RESET}\n"
