@@ -47,25 +47,40 @@ def cmd_summon(args):
 
 def cmd_listen(args):
     """
-    Waits for the team. Exits the moment something arrives.
-    Runs silently in the background â€” the agent wakes only when needed.
+    Long-poll the hive bus. Default: exits the moment something arrives.
+    With --follow: never exits; emits ONE concise line per new message — meant
+    to be the command of a Claude Code Monitor, so the agent wakes the instant a
+    message arrives (zero tokens while idle), exactly like a persistent watcher.
     """
+    follow   = getattr(args, "follow", False)
     api_key  = config.require("api_key", "SORRYHUMANS_KEY")
     agent_id = config.require("agent_id")
     since    = config.get("listen_cursor") or "0"
 
     while True:
-        result = client.listen_once(_base_url(), api_key, agent_id, since)
+        try:
+            result = client.listen_once(_base_url(), api_key, agent_id, since)
+        except Exception:
+            import time as _t
+            _t.sleep(3)
+            continue
         messages = result.get("messages", [])
-        cursor   = result.get("cursor", since)
+        since    = result.get("cursor", since)
 
         if messages:
             cfg = config.load()
-            cfg["listen_cursor"] = cursor
+            cfg["listen_cursor"] = since
             config.save(cfg)
             for msg in messages:
-                print(json.dumps(msg))
-            sys.exit(0)
+                if msg.get("from_agent") == agent_id:
+                    continue  # no te despiertes con tus propios mensajes
+                if follow:
+                    body = (msg.get("body") or "")[:140]
+                    print(f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}", flush=True)
+                else:
+                    print(json.dumps(msg))
+            if not follow:
+                sys.exit(0)
 
 
 def cmd_relay(args):
@@ -111,6 +126,7 @@ def main():
     p_summon.set_defaults(func=cmd_summon)
 
     p_listen = sub.add_parser("listen", add_help=False)
+    p_listen.add_argument("--follow", action="store_true", help="Never exit; one line per new message (for a Monitor that wakes the agent)")
     p_listen.set_defaults(func=cmd_listen)
 
     p_relay = sub.add_parser("relay", help="Send a message to your team", add_help=False)
