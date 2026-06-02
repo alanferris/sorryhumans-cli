@@ -253,11 +253,21 @@ def cmd_connect(args):
     name = args.name or f"{role}@{socket.gethostname()}"
     base = _base_url()
 
-    try:
-        dc = client.device_code(base, name, role)
-    except Exception as e:
-        print(f"Could not reach the hive: {e}")
-        sys.exit(1)
+    # Reintenta ante hipos transitorios de red/DNS (p.ej. "Temporary failure in
+    # name resolution") en vez de abortar al primer error.
+    dc = None
+    for attempt in range(5):
+        try:
+            dc = client.device_code(base, name, role)
+            break
+        except Exception as e:
+            if attempt < 4:
+                print(f"  Network hiccup reaching the hive — retrying ({attempt + 1}/5)...", flush=True)
+                time.sleep(3)
+            else:
+                print(f"\nCould not reach the hive after several tries: {e}")
+                print("  Check your internet/DNS and run it again.")
+                sys.exit(1)
 
     base_url = dc["verification_uri"]
     sep = "&" if "?" in base_url else "?"
