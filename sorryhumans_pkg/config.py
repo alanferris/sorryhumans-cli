@@ -54,6 +54,30 @@ def load_project(team_id: str) -> dict:
     return {}
 
 
+def list_local() -> list:
+    """Projects this machine has connected to (read from projects/*.json)."""
+    out = []
+    if PROJECTS_DIR.exists():
+        for f in sorted(PROJECTS_DIR.glob("*.json")):
+            try:
+                out.append(json.loads(f.read_text()))
+            except Exception:
+                pass
+    return out
+
+
+def set_autonomy(team_id: str, skip: bool) -> None:
+    """Remember the agent's permission mode for a project (skip_permissions)."""
+    if team_id:
+        c = load_project(team_id)
+        c["skip_permissions"] = bool(skip)
+        save_project(team_id, c)
+    else:
+        c = load()
+        c["skip_permissions"] = bool(skip)
+        save(c)
+
+
 def _dir_project() -> str | None:
     """Walk cwd upward looking for a `.sorryhumans` FILE naming a project id."""
     try:

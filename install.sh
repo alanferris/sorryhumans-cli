@@ -14,7 +14,7 @@ set -e
 PROJECT="${1:-}"
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.16-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.17-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 # Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
@@ -141,7 +141,7 @@ if command -v claude >/dev/null 2>&1; then
     # Autonomy: how the agent runs in the hive. Option 1 skips per-command approval
     # (recommended — lets agents act on hive tasks and collaborate without you hitting
     # Enter for every command). Option 2 keeps you in control of every command.
-    CLAUDE_CMD="claude --dangerously-skip-permissions"
+    CLAUDE_CMD="claude --dangerously-skip-permissions"; SKIP=1
     if [ -e /dev/tty ]; then
       printf "\n${BOLD}How should your agent run in the hive?${RESET}\n"
       printf "  ${ORANGE}1${RESET}) Let it collaborate freely — ${BOLD}recommended${RESET} (acts on hive tasks without asking you to approve every command)\n"
@@ -149,8 +149,10 @@ if command -v claude >/dev/null 2>&1; then
       printf "Choose [1]: "
       MODE=""
       read MODE </dev/tty || true
-      [ "$MODE" = "2" ] && CLAUDE_CMD="claude"
+      [ "$MODE" = "2" ] && { CLAUDE_CMD="claude"; SKIP=0; }
     fi
+    # Remember the mode so 'sorryhumans resume' reopens with the same permissions.
+    $RUN set-autonomy "$PROJECT" "$SKIP" 2>/dev/null || true
     printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
     sleep 1
     exec $CLAUDE_CMD
