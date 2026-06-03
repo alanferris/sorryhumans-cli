@@ -17,17 +17,45 @@ DIST="https://storage.googleapis.com/sorryhumans-dist"
 WHEEL="sorryhumans_cli-0.1.14-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
+# Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
+# rest of the install work even if only one of them is present.
+dl() {
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$1"
+  elif command -v wget >/dev/null 2>&1; then wget -qO- "$1"
+  else echo "ERROR: need 'curl' or 'wget' installed. Install one and re-run." >&2; return 1; fi
+}
+
 printf "\n${ORANGE}${BOLD}Sorry, humans.${RESET}\nSetting up your machine...\n\n"
 
-# Python 3.11+
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Python 3.11+ is required. Install it from https://python.org and try again."
-  exit 1
+# Need Python 3.11+. Use the system one if it qualifies; otherwise fetch a standalone
+# CPython into ~/.sorryhumans/python — no sudo, no system changes.
+PYEXE=""
+if command -v python3 >/dev/null 2>&1; then
+  _M=$(python3 -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo 0)
+  [ "$_M" -ge 11 ] 2>/dev/null && PYEXE="$(command -v python3)"
 fi
-PYMIN=$(python3 -c "import sys; print(sys.version_info.minor)" 2>/dev/null)
-if [ "$PYMIN" -lt 11 ] 2>/dev/null; then
-  echo "Python 3.11+ required (found 3.$PYMIN). Please upgrade."
-  exit 1
+if [ -z "$PYEXE" ] && [ -x "$HOME/.sorryhumans/python/bin/python3" ]; then
+  PYEXE="$HOME/.sorryhumans/python/bin/python3"
+fi
+if [ -z "$PYEXE" ]; then
+  echo "  No Python 3.11+ found — fetching a standalone one (no sudo)..."
+  PBS="20260602"; PYV="3.11.15"
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64)              TRIPLE="x86_64-unknown-linux-gnu" ;;
+    Linux-aarch64|Linux-arm64) TRIPLE="aarch64-unknown-linux-gnu" ;;
+    Darwin-arm64)              TRIPLE="aarch64-apple-darwin" ;;
+    Darwin-x86_64)             TRIPLE="x86_64-apple-darwin" ;;
+    *) echo "  Can't auto-install Python for $(uname -s)-$(uname -m). Install Python 3.11+ and re-run."; exit 1 ;;
+  esac
+  URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS}/cpython-${PYV}+${PBS}-${TRIPLE}-install_only.tar.gz"
+  TB="$(mktemp)"
+  mkdir -p "$HOME/.sorryhumans"
+  dl "$URL" > "$TB" 2>/dev/null || { echo "  Could not download Python. Install Python 3.11+ manually."; rm -f "$TB"; exit 1; }
+  tar -xzf "$TB" -C "$HOME/.sorryhumans" 2>/dev/null || { echo "  Could not unpack Python."; rm -f "$TB"; exit 1; }
+  rm -f "$TB"
+  PYEXE="$HOME/.sorryhumans/python/bin/python3"
+  [ -x "$PYEXE" ] || { echo "  Python bootstrap failed. Install Python 3.11+ manually."; exit 1; }
+  echo "  Standalone Python ready."
 fi
 
 # Install into an isolated venv. This is robust on Debian/Ubuntu, where the
@@ -35,16 +63,16 @@ fi
 PKG="${DIST}/${WHEEL}"
 VENV="$HOME/.sorryhumans/venv"
 if [ ! -x "$VENV/bin/python" ]; then
-  python3 -m venv "$VENV" 2>/dev/null || true
+  "$PYEXE" -m venv "$VENV" 2>/dev/null || true
 fi
 if [ -x "$VENV/bin/python" ]; then
   PYBIN="$VENV/bin/python"
 else
-  # Fallback: bootstrap pip for the system python and install --user.
-  python3 -m ensurepip --upgrade >/dev/null 2>&1 || {
-    GP="$(mktemp)"; curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$GP" 2>/dev/null \
-      && python3 "$GP" --user >/dev/null 2>&1; rm -f "$GP"; }
-  PYBIN="python3"
+  # Fallback: bootstrap pip for the chosen python and install --user.
+  "$PYEXE" -m ensurepip --upgrade >/dev/null 2>&1 || {
+    GP="$(mktemp)"; dl https://bootstrap.pypa.io/get-pip.py > "$GP" 2>/dev/null \
+      && "$PYEXE" "$GP" --user >/dev/null 2>&1; rm -f "$GP"; }
+  PYBIN="$PYEXE"
 fi
 "$PYBIN" -m pip install --quiet --upgrade "$PKG" 2>/dev/null \
   || "$PYBIN" -m pip install --quiet --upgrade --user "$PKG" 2>/dev/null \
@@ -62,7 +90,7 @@ else RUN="python3 -m sorryhumans_pkg.cli"; fi
 # Install the /sorryhumans skill for Claude Code.
 SKILL_DIR="$HOME/.claude/skills/sorryhumans"
 mkdir -p "$SKILL_DIR"
-if curl -fsSL "${DIST}/SKILL.md" -o "$SKILL_DIR/SKILL.md" 2>/dev/null; then
+if dl "${DIST}/SKILL.md" > "$SKILL_DIR/SKILL.md" 2>/dev/null; then
   echo "  Skill /sorryhumans installed for Claude Code."
 fi
 
@@ -75,7 +103,7 @@ if ! command -v claude >/dev/null 2>&1; then
     read ANS </dev/tty || true
     case "$ANS" in
       [Nn]*) printf "  Skipped. Install later: ${ORANGE}curl -fsSL https://claude.ai/install.sh | bash${RESET}\n" ;;
-      *) printf "  Installing Claude Code...\n"; curl -fsSL https://claude.ai/install.sh | bash || true ;;
+      *) printf "  Installing Claude Code...\n"; dl https://claude.ai/install.sh | bash || true ;;
     esac
   else
     printf "  Claude Code not found. Install it: curl -fsSL https://claude.ai/install.sh | bash\n"
