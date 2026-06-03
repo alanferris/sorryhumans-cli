@@ -167,6 +167,10 @@ def main():
     p_use.add_argument("project", help="Project id to bind to this directory")
     p_use.set_defaults(func=cmd_use)
 
+    p_disc = sub.add_parser("disconnect", help="Leave a project on this machine", add_help=False)
+    p_disc.add_argument("project", nargs="?", default=None, help="Project id (default: the active one)")
+    p_disc.set_defaults(func=cmd_disconnect)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -419,6 +423,30 @@ def cmd_use(args):
         f.write(pid + "\n")
     print(f"  This directory is now bound to project {pid}.")
     print(f"  Open Claude Code here to use it — or for a single window: SORRYHUMANS_PROJECT={pid} claude")
+
+
+def cmd_disconnect(args):
+    """Sale de un proyecto en ESTA máquina (borra las credenciales locales).
+    No revoca tu membresía en el proyecto — solo desconecta esta máquina."""
+    pid = args.project or config.active_project_id()
+    if not pid:
+        print("Usage: sorryhumans disconnect <project_id>")
+        return
+    p = config._project_path(pid)
+    removed = p.exists()
+    if removed:
+        try:
+            p.unlink()
+        except Exception:
+            pass
+    d = config.load()
+    if d.get("team_id") == pid:
+        config.save({})   # era el default; lo limpiamos para que no quede colgado
+    if removed:
+        print(f"  Disconnected from {pid} on this machine.")
+    else:
+        print(f"  This machine wasn't connected to {pid}.")
+    print("  (Only local credentials were removed; your project membership is unchanged.)")
 
 
 def cmd_mcp(args):

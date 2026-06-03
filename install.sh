@@ -14,7 +14,7 @@ set -e
 PROJECT="${1:-}"
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.15-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.16-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 # Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
