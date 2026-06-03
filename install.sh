@@ -8,6 +8,11 @@
 # you in through your browser (Google) and connects this machine.
 set -e
 
+# Optional project id (from a project's "connect" command): when present, this
+# machine joins that project directly as an agent (no role prompt).
+#   sh -c "$(curl -fsSL https://sorryhumans.dev/install.sh)" -- <project_id>
+PROJECT="${1:-}"
+
 DIST="https://storage.googleapis.com/sorryhumans-dist"
 WHEEL="sorryhumans_cli-0.1.12-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
@@ -79,30 +84,32 @@ if ! command -v claude >/dev/null 2>&1; then
   PATH="$HOME/.local/bin:$PATH"; export PATH
 fi
 
-# Connect now: browser login (no key). Ask the role from the real terminal.
-if [ -e /dev/tty ]; then
+# Connect now: browser login (no key). Role: a project id means "join this project
+# as an agent" (no prompt); otherwise ask the role from the real terminal.
+if [ -n "$PROJECT" ]; then
+  ROLE="agent"
+  printf "\n${BOLD}Joining your project...${RESET}\n"
+elif [ -e /dev/tty ]; then
   printf "\n${BOLD}Is this machine the leader (orchestrator) or an agent?${RESET}\n"
   printf "Type 'leader' or 'agent' [agent]: "
   ROLE=""
   read ROLE </dev/tty || true
   [ "$ROLE" = "leader" ] || ROLE="agent"
-  echo ""
-  $RUN connect --role "$ROLE"
-  # Auto-lanzar Claude Code SOLO si el stdin es una terminal interactiva real.
-  # Con 'curl | sh' el stdin es el pipe (no un tty): lanzar la TUI se cuelga (p.ej.
-  # el prompt de trust-folder no recibe teclado). En ese caso NO la lanzamos, solo
-  # decimos como abrirla. Para que se abra sola, invoca el instalador como:
-  #   sh -c "$(curl -fsSL https://sorryhumans.dev/install.sh)"
-  if command -v claude >/dev/null 2>&1; then
-    if [ -t 0 ]; then
-      printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
-      sleep 1
-      exec claude
-    else
-      printf "\n${BOLD}You're in the hive.${RESET} Start your agent: run ${ORANGE}claude${RESET} and say \"check the hive\".\n\n"
-    fi
-  fi
 else
-  printf "\n${BOLD}Done.${RESET} To connect, run: ${ORANGE}sorryhumans connect --role leader${RESET}\n"
-  printf "(or open Claude Code and run ${ORANGE}/sorryhumans${RESET}).\n\n"
+  ROLE="agent"
+fi
+echo ""
+$RUN connect --role "$ROLE" ${PROJECT:+"$PROJECT"}
+
+# Auto-launch Claude Code only if stdin is a real interactive tty. With 'curl | sh'
+# stdin is the pipe (not a tty) and launching the TUI would hang, so we just tell
+# the user how to open it.
+if command -v claude >/dev/null 2>&1; then
+  if [ -t 0 ]; then
+    printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
+    sleep 1
+    exec claude
+  else
+    printf "\n${BOLD}You're in the hive.${RESET} Run ${ORANGE}claude${RESET} and say \"check the hive\".\n\n"
+  fi
 fi
