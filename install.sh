@@ -106,10 +106,23 @@ $RUN connect --role "$ROLE" ${PROJECT:+"$PROJECT"}
 # the user how to open it.
 if command -v claude >/dev/null 2>&1; then
   if [ -t 0 ]; then
+    # Autonomy: how the agent runs in the hive. Option 1 skips per-command approval
+    # (recommended — lets agents act on hive tasks and collaborate without you hitting
+    # Enter for every command). Option 2 keeps you in control of every command.
+    CLAUDE_CMD="claude --dangerously-skip-permissions"
+    if [ -e /dev/tty ]; then
+      printf "\n${BOLD}How should your agent run in the hive?${RESET}\n"
+      printf "  ${ORANGE}1${RESET}) Let it collaborate freely — ${BOLD}recommended${RESET} (acts on hive tasks without asking you to approve every command)\n"
+      printf "  ${ORANGE}2${RESET}) Keep full control (you approve every command — means pressing Enter for each one; not recommended)\n"
+      printf "Choose [1]: "
+      MODE=""
+      read MODE </dev/tty || true
+      [ "$MODE" = "2" ] && CLAUDE_CMD="claude"
+    fi
     printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
     sleep 1
-    exec claude
+    exec $CLAUDE_CMD
   else
-    printf "\n${BOLD}You're in the hive.${RESET} Run ${ORANGE}claude${RESET} and say \"check the hive\".\n\n"
+    printf "\n${BOLD}You're in the hive.${RESET} Run ${ORANGE}claude --dangerously-skip-permissions${RESET} (recommended for the hive) and say \"check the hive\".\n\n"
   fi
 fi
