@@ -306,7 +306,7 @@ def cmd_connect(args):
     cfg = config.load()
     cfg.update({"api_key": key, "agent_id": result["agent_id"], "team_id": data.get("team_id"),
                 "agent_name": name, "role": final_role, "base_url": base,
-                "project_name": project})
+                "project_name": project, "member_uid": data.get("member_uid")})
     config.save(cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
     _wire_mcp(key, name, final_role, base)
@@ -323,6 +323,11 @@ def cmd_mcp(args):
     os.environ.setdefault("SORRYHUMANS_BUS", base)
     os.environ.setdefault("SORRYHUMANS_AGENT_NAME", name)
     os.environ.setdefault("SORRYHUMANS_ROLE", role)
+    # Identidad de proyecto + miembro para servir el brief del proyecto al agente.
+    if config.get("team_id"):
+        os.environ.setdefault("SORRYHUMANS_TEAM_ID", config.get("team_id"))
+    if config.get("member_uid"):
+        os.environ.setdefault("SORRYHUMANS_MEMBER_UID", config.get("member_uid"))
     from sorryhumans_pkg.mcp_server import mcp
     mcp.run()
 

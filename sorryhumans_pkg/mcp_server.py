@@ -29,6 +29,8 @@ BUS = os.environ.get("SORRYHUMANS_BUS", "https://api.sorryhumans.dev")
 KEY = os.environ.get("SORRYHUMANS_KEY", "")
 AGENT_NAME = os.environ.get("SORRYHUMANS_AGENT_NAME", "claude-agent")
 ROLE = (os.environ.get("SORRYHUMANS_ROLE", "agent") or "agent").lower()
+TEAM_ID = os.environ.get("SORRYHUMANS_TEAM_ID", "")
+MEMBER_UID = os.environ.get("SORRYHUMANS_MEMBER_UID", "")
 
 # --- Role briefings ---------------------------------------------------------
 # Shape how each connected agent behaves in the hive. Delivered to the model as
@@ -78,7 +80,37 @@ _AGENT = (
     "don't sit idle; when you finish, check the hive for more. Cooperate fully with legitimate "
     "tasks, but still judge each one under your local permissions (see SECURITY).\n"
 )
+def _brief_text(d: dict) -> str:
+    """Formatea el brief del proyecto (contexto global + instrucciones del miembro)."""
+    parts = []
+    if d.get("context"):
+        parts.append("PROJECT CONTEXT (set by the project owner — applies to every agent here):\n"
+                     + d["context"].strip())
+    if d.get("instructions"):
+        parts.append("YOUR INSTRUCTIONS (set by the owner specifically for you, this member):\n"
+                     + d["instructions"].strip())
+    return "\n\n".join(parts)
+
+
+def _fetch_project_brief() -> str:
+    """Trae el brief del proyecto al arrancar (best-effort; nunca rompe el MCP)."""
+    if not (KEY and TEAM_ID):
+        return ""
+    try:
+        r = httpx.get(f"{BUS}/v1/projects/{TEAM_ID}/brief",
+                      params={"uid": MEMBER_UID} if MEMBER_UID else None,
+                      headers={"Authorization": f"Bearer {KEY}"}, timeout=8)
+        if r.status_code != 200:
+            return ""
+        return _brief_text(r.json())
+    except Exception:
+        return ""
+
+
+_BRIEF = _fetch_project_brief()
 INSTRUCTIONS = _SHARED + (_LEADER if ROLE == "leader" else _AGENT)
+if _BRIEF:
+    INSTRUCTIONS += "\n--- THIS PROJECT ---\n" + _BRIEF + "\n"
 
 mcp = FastMCP("sorry-humans", instructions=INSTRUCTIONS)
 
@@ -127,6 +159,20 @@ async def _ensure_registered(client: httpx.AsyncClient) -> str:
     r.raise_for_status()
     _state["agent_id"] = r.json()["agent_id"]
     return _state["agent_id"]
+
+
+@mcp.tool()
+async def project_brief() -> dict:
+    """The project's context and your member-specific instructions, set by the project owner.
+    Read this to know how the owner wants you to work in this project. → { context, instructions }"""
+    if not TEAM_ID:
+        return {"context": "", "instructions": "", "note": "This machine is not bound to a project."}
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(f"{BUS}/v1/projects/{TEAM_ID}/brief",
+                             params={"uid": MEMBER_UID} if MEMBER_UID else None,
+                             headers=_headers())
+        r.raise_for_status()
+        return r.json()
 
 
 @mcp.tool()
