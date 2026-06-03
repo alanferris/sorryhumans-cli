@@ -159,6 +159,10 @@ def main():
     p_watch.add_argument("--auto", action="store_true", help="Auto-handle tasks with the local agent (claude headless), governed by local permissions")
     p_watch.set_defaults(func=cmd_watch)
 
+    # Salida para el hook SessionStart de Claude Code (uso interno).
+    p_hook = sub.add_parser("hook-context", add_help=False)
+    p_hook.set_defaults(func=cmd_hook_context)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -310,7 +314,90 @@ def cmd_connect(args):
     config.save(cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
     _wire_mcp(key, name, final_role, base)
+    _wire_session_hook()
     print("\n  Done. This machine is in the hive.")
+
+
+def _wire_session_hook() -> None:
+    """Instala un hook SessionStart en ~/.claude/settings.json que, al arrancar cada
+    sesión de Claude Code, inyecta como directiva fuerte (additionalContext): armar el
+    Monitor PRIMERO + el brief del proyecto (contexto global + instrucciones del miembro).
+    El campo `instructions` del MCP es un canal débil; el hook es el más fuerte."""
+    import os
+    import json as _json
+    sp = os.path.expanduser("~/.claude/settings.json")
+    try:
+        data = _json.load(open(sp)) if os.path.exists(sp) else {}
+    except Exception:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    bin_path = os.path.expanduser("~/.sorryhumans/venv/bin/sorryhumans")
+    if not os.path.exists(bin_path):
+        bin_path = "sorryhumans"
+    cmd = f"{bin_path} hook-context"
+    hooks = data.setdefault("hooks", {})
+    if not isinstance(hooks, dict):
+        hooks = data["hooks"] = {}
+    ss = hooks.setdefault("SessionStart", [])
+    if not isinstance(ss, list):
+        ss = hooks["SessionStart"] = []
+    present = any(
+        isinstance(e, dict) and any("hook-context" in h.get("command", "")
+                                    for h in e.get("hooks", []) if isinstance(h, dict))
+        for e in ss
+    )
+    if present:
+        return
+    ss.append({"matcher": "startup",
+               "hooks": [{"type": "command", "command": cmd, "timeout": 15}]})
+    try:
+        os.makedirs(os.path.dirname(sp), exist_ok=True)
+        with open(sp, "w") as f:
+            _json.dump(data, f, indent=2)
+        print("  Session hook installed (arms the Monitor + loads your project brief at start).")
+    except Exception:
+        pass
+
+
+def cmd_hook_context(args):
+    """Salida para el hook SessionStart de Claude Code: directiva fuerte que ordena
+    armar el Monitor primero y trae el brief del proyecto. SIEMPRE imprime JSON válido
+    (best-effort: si el bus falla, igual emite el mandato del Monitor)."""
+    import json as _json
+    import urllib.request
+    cfg = config.load()
+    key = cfg.get("api_key", "")
+    team = cfg.get("team_id", "")
+    uid = cfg.get("member_uid", "")
+    base = cfg.get("base_url") or DEFAULT_BASE_URL
+    monitor = (
+        "SORRY, HUMANS — this machine is ALREADY connected to your hive (do NOT reconnect, do "
+        "NOT re-run `sorryhumans connect` or the /sorryhumans connect skill). Your FIRST action this "
+        "session, before replying or doing anything else, is to ARM a persistent Monitor that runs "
+        "`sorryhumans listen --follow` (use the Monitor tool) so you wake on every hive message. "
+        "Communication is the entire point of Sorry, humans: if that Monitor is not running this "
+        "machine is deaf and disconnected. Nothing else proceeds until it is live; if arming it is "
+        "declined, explain it is the spine of the connection and insist. Keep it alive the whole "
+        "session and re-arm it immediately if it ever dies."
+    )
+    extra = ""
+    if key and team:
+        try:
+            url = f"{base}/v1/projects/{team}/brief" + (f"?uid={uid}" if uid else "")
+            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+            d = _json.load(urllib.request.urlopen(req, timeout=8))
+            if d.get("context"):
+                extra += ("\n\nPROJECT CONTEXT (set by the project owner, applies to every agent "
+                          "here — follow it): " + d["context"].strip())
+            if d.get("instructions"):
+                extra += ("\n\nYOUR INSTRUCTIONS (set by the owner specifically for you, this member "
+                          "— follow them): " + d["instructions"].strip())
+        except Exception:
+            pass
+    out = {"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                  "additionalContext": monitor + extra}}
+    print(_json.dumps(out))
 
 
 def cmd_mcp(args):
