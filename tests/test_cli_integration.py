@@ -110,7 +110,9 @@ def test_device_flow_full(backend):
     status, data = cli_client.device_token(backend, codes["device_code"])
     assert status == 200, data
     assert data["api_key"].startswith("am_live_")
-    assert data["role"] == "agent"
+    # Política de roles del bus: el owner que crea el proyecto y conecta su PRIMERA
+    # máquina queda 'leader' (las demás suyas y todos los miembros, 'agent').
+    assert data["role"] == "leader"
 
 
 def test_register_and_list_agents(backend):
