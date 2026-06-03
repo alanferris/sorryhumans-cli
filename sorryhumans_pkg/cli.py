@@ -171,6 +171,17 @@ def main():
     p_disc.add_argument("project", nargs="?", default=None, help="Project id (default: the active one)")
     p_disc.set_defaults(func=cmd_disconnect)
 
+    p_projects = sub.add_parser("projects", help="List your projects and open one", add_help=False)
+    p_projects.set_defaults(func=cmd_projects)
+
+    p_resume = sub.add_parser("resume", help="Resume your last Claude session in a project", add_help=False)
+    p_resume.set_defaults(func=cmd_resume)
+
+    p_setaut = sub.add_parser("set-autonomy", add_help=False)
+    p_setaut.add_argument("project", nargs="?", default=None)
+    p_setaut.add_argument("skip", nargs="?", default="1")
+    p_setaut.set_defaults(func=cmd_set_autonomy)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -447,6 +458,97 @@ def cmd_disconnect(args):
     else:
         print(f"  This machine wasn't connected to {pid}.")
     print("  (Only local credentials were removed; your project membership is unchanged.)")
+
+
+def _ask(prompt, default=""):
+    try:
+        v = input(prompt)
+        return v.strip() or default
+    except Exception:
+        return default
+
+
+def _ask_autonomy(default_skip=True):
+    """Pregunta cómo corre el agente (1=colabora libre / 2=control total). → skip(bool)."""
+    print("\nHow should your agent run in the hive?")
+    print("  1) Let it collaborate freely — recommended (acts on hive tasks without asking you to approve every command)")
+    print("  2) Keep full control (you approve every command; not recommended)")
+    d = "1" if default_skip else "2"
+    return _ask(f"Choose [{d}]: ", d) != "2"
+
+
+def _launch_claude(project_id=None, resume=False, skip=True):
+    """Reemplaza este proceso por Claude Code, atado al proyecto (env) y con el modo
+    de permisos elegido. Si no hay claude, lo dice."""
+    import os
+    env = dict(os.environ)
+    if project_id:
+        env["SORRYHUMANS_PROJECT"] = project_id
+    cmd = ["claude"]
+    if resume:
+        cmd.append("--resume")
+    if skip:
+        cmd.append("--dangerously-skip-permissions")
+    try:
+        os.execvpe("claude", cmd, env)
+    except Exception:
+        print("  Could not launch Claude Code (is it installed?). Run it yourself:")
+        print("   ", "SORRYHUMANS_PROJECT=%s " % project_id if project_id else "", " ".join(cmd))
+        sys.exit(1)
+
+
+def cmd_projects(args):
+    """Lista los proyectos conectados en esta máquina (por nombre), elige uno,
+    pregunta autonomía y abre Claude Code ahí."""
+    projs = config.list_local()
+    if not projs:
+        print("\n  No projects connected on this machine yet.")
+        print("  Open your project at sorryhumans.dev and copy its connect command, or run:")
+        print("    sorryhumans connect <project_id>\n")
+        return
+    print("\n  Your projects on this machine:\n")
+    for i, p in enumerate(projs, 1):
+        print(f"    {i}) {p.get('project_name') or p.get('team_id')}  ({p.get('role', 'agent')})")
+    sel = _ask("\n  Open which one? [1]: ", "1")
+    try:
+        chosen = projs[int(sel) - 1]
+    except Exception:
+        print("  Invalid choice."); return
+    pid = chosen.get("team_id")
+    skip = _ask_autonomy(chosen.get("skip_permissions", True))
+    config.set_autonomy(pid, skip)
+    print(f"\n  Opening {chosen.get('project_name') or pid}…")
+    _launch_claude(pid, resume=False, skip=skip)
+
+
+def cmd_resume(args):
+    """Reabre la última sesión de Claude (claude --resume) en el proyecto activo,
+    manteniendo el modo de permisos con el que quedó ese proyecto."""
+    pid = config.active_project_id()
+    if not pid:
+        locals_ = config.list_local()
+        if len(locals_) == 1:
+            pid = locals_[0].get("team_id")
+        elif len(locals_) > 1:
+            print("\n  Which project to resume?\n")
+            for i, p in enumerate(locals_, 1):
+                print(f"    {i}) {p.get('project_name') or p.get('team_id')}")
+            sel = _ask("\n  Resume which one? [1]: ", "1")
+            try:
+                pid = locals_[int(sel) - 1].get("team_id")
+            except Exception:
+                print("  Invalid choice."); return
+    cfg = config.load_project(pid) if pid else config.load()
+    skip = cfg.get("skip_permissions", True)
+    name = cfg.get("project_name") or pid or "your project"
+    print(f"\n  Resuming Claude Code in {name} ({'free collaboration' if skip else 'full control'})…")
+    _launch_claude(pid, resume=True, skip=skip)
+
+
+def cmd_set_autonomy(args):
+    """Uso interno (lo llama install.sh): recuerda el modo de permisos del proyecto."""
+    skip = str(args.skip).lower() not in ("0", "false", "no")
+    config.set_autonomy(args.project or "", skip)
 
 
 def cmd_mcp(args):
