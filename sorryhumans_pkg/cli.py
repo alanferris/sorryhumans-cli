@@ -147,6 +147,8 @@ def main():
     p_connect = sub.add_parser("connect", help="Log in via browser and connect this machine (no API key pasting)", add_help=False)
     p_connect.add_argument("--role", default="agent", choices=["leader", "agent"], help="leader (orchestrator) or agent")
     p_connect.add_argument("--name", default=None, help="A name for this agent")
+    p_connect.add_argument("project", nargs="?", default=None,
+                           help="Project id to bind this machine to directly (from the project page)")
     p_connect.set_defaults(func=cmd_connect)
 
     p_mcp = sub.add_parser("mcp", help="Start the MCP server for Claude Code / Claude Desktop", add_help=False)
@@ -272,6 +274,10 @@ def cmd_connect(args):
     base_url = dc["verification_uri"]
     sep = "&" if "?" in base_url else "?"
     connect_url = f"{base_url}{sep}code={dc['user_code']}"
+    # Si se pasó un project id, el navegador salta el selector y ata la máquina a
+    # ese proyecto directo (el usuario debe ser miembro; el bus lo valida al aprobar).
+    if getattr(args, "project", None):
+        connect_url += f"&p={args.project}"
     print(f"\n  To connect this machine ({name}) as {role}, open this link")
     print(f"  (your code is already in it) and sign in with Google:\n")
     print(f"    {connect_url}\n")
