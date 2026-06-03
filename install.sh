@@ -14,7 +14,7 @@ set -e
 PROJECT="${1:-}"
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.14-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.15-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 # Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
@@ -128,6 +128,10 @@ else
 fi
 echo ""
 $RUN connect --role "$ROLE" ${PROJECT:+"$PROJECT"}
+
+# Bind THIS launched window to the project (per-window, via env) so multiple windows
+# can target different projects even from the same directory.
+[ -n "$PROJECT" ] && export SORRYHUMANS_PROJECT="$PROJECT"
 
 # Auto-launch Claude Code only if stdin is a real interactive tty. With 'curl | sh'
 # stdin is the pipe (not a tty) and launching the TUI would hang, so we just tell

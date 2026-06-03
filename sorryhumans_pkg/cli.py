@@ -163,6 +163,10 @@ def main():
     p_hook = sub.add_parser("hook-context", add_help=False)
     p_hook.set_defaults(func=cmd_hook_context)
 
+    p_use = sub.add_parser("use", help="Bind this directory to a project (multi-project)", add_help=False)
+    p_use.add_argument("project", help="Project id to bind to this directory")
+    p_use.set_defaults(func=cmd_use)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -312,6 +316,9 @@ def cmd_connect(args):
                 "agent_name": name, "role": final_role, "base_url": base,
                 "project_name": project, "member_uid": data.get("member_uid")})
     config.save(cfg)
+    # Guardar también por-proyecto, para pertenecer a varios proyectos a la vez.
+    if cfg.get("team_id"):
+        config.save_project(cfg["team_id"], cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
     _wire_mcp(key, name, final_role, base)
     _wire_session_hook()
@@ -366,7 +373,7 @@ def cmd_hook_context(args):
     (best-effort: si el bus falla, igual emite el mandato del Monitor)."""
     import json as _json
     import urllib.request
-    cfg = config.load()
+    cfg = config.active()   # proyecto activo: env > .sorryhumans > default
     key = cfg.get("api_key", "")
     team = cfg.get("team_id", "")
     uid = cfg.get("member_uid", "")
@@ -400,21 +407,40 @@ def cmd_hook_context(args):
     print(_json.dumps(out))
 
 
+def cmd_use(args):
+    """Ata el directorio actual a un proyecto (escribe un marcador .sorryhumans).
+    Abrir Claude Code en esta carpeta usará el contexto de ese proyecto."""
+    import os
+    pid = args.project
+    if pid and not config.load_project(pid):
+        print(f"  Note: this machine isn't connected to {pid} yet — run: sorryhumans connect {pid}")
+    path = os.path.join(os.getcwd(), config.MARKER)
+    with open(path, "w") as f:
+        f.write(pid + "\n")
+    print(f"  This directory is now bound to project {pid}.")
+    print(f"  Open Claude Code here to use it — or for a single window: SORRYHUMANS_PROJECT={pid} claude")
+
+
 def cmd_mcp(args):
     import os
-    key = config.require("api_key", "SORRYHUMANS_KEY")
-    base = config.get("base_url") or DEFAULT_BASE_URL
-    name = args.name or config.get("agent_name") or "claude-agent"
-    role = config.get("role") or "agent"
+    # Proyecto ACTIVO de esta sesión: env SORRYHUMANS_PROJECT > archivo .sorryhumans >
+    # default. Así una misma máquina sirve varios proyectos (uno por ventana/carpeta).
+    cfg = config.active()
+    key = cfg.get("api_key") or os.environ.get("SORRYHUMANS_KEY")
+    if not key:
+        raise SystemExit("ERROR: not connected. Run: sorryhumans connect")
+    base = cfg.get("base_url") or DEFAULT_BASE_URL
+    name = args.name or cfg.get("agent_name") or "claude-agent"
+    role = cfg.get("role") or "agent"
     os.environ.setdefault("SORRYHUMANS_KEY", key)
     os.environ.setdefault("SORRYHUMANS_BUS", base)
     os.environ.setdefault("SORRYHUMANS_AGENT_NAME", name)
     os.environ.setdefault("SORRYHUMANS_ROLE", role)
     # Identidad de proyecto + miembro para servir el brief del proyecto al agente.
-    if config.get("team_id"):
-        os.environ.setdefault("SORRYHUMANS_TEAM_ID", config.get("team_id"))
-    if config.get("member_uid"):
-        os.environ.setdefault("SORRYHUMANS_MEMBER_UID", config.get("member_uid"))
+    if cfg.get("team_id"):
+        os.environ.setdefault("SORRYHUMANS_TEAM_ID", cfg["team_id"])
+    if cfg.get("member_uid"):
+        os.environ.setdefault("SORRYHUMANS_MEMBER_UID", cfg["member_uid"])
     from sorryhumans_pkg.mcp_server import mcp
     mcp.run()
 
