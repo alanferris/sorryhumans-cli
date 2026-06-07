@@ -397,16 +397,20 @@ def cmd_connect(args):
 
 def _hook_command() -> str:
     """Comando del hook SessionStart: ruta COMPLETA al ejecutable real del venv —
-    Scripts\\sorryhumans.exe en Windows, bin/sorryhumans en POSIX— citada por si el
-    path del usuario tiene espacios. Si caemos a 'sorryhumans' a secas en Windows, éste
-    resuelve a un binario SIN extensión y Claude Code, al correr el hook, dispara el
-    diálogo "¿con qué app abrir esto?". La ruta completa al .exe lo evita."""
+    Scripts\\sorryhumans.exe en Windows, bin/sorryhumans en POSIX. Si caemos a
+    'sorryhumans' a secas en Windows, éste resuelve a un binario SIN extensión y Claude
+    Code dispara el diálogo "¿con qué app abrir esto?"; la ruta completa al .exe lo evita.
+
+    La ruta va SIN comillas: Claude Code ejecuta el hook con el shell del SO — PowerShell
+    en Windows— y en PowerShell `"ruta" arg` es error de parseo (token inesperado tras el
+    string literal). Una ruta a secas se ejecuta bien en PowerShell, cmd y sh. (Limitación
+    conocida: un path con espacios rompería; los dirs de instalación no los tienen.)"""
     import os
     venv = os.path.expanduser("~/.sorryhumans/venv")
     for c in (os.path.join(venv, "Scripts", "sorryhumans.exe"),  # Windows
               os.path.join(venv, "bin", "sorryhumans")):         # POSIX
         if os.path.exists(c):
-            return f'"{c}" hook-context'
+            return f"{c} hook-context"
     return "sorryhumans hook-context"
 
 
