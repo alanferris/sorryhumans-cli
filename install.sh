@@ -27,17 +27,30 @@ dl() {
 
 printf "\n${ORANGE}${BOLD}Sorry, humans.${RESET}\nSetting up your machine...\n\n"
 
-# Need Python 3.11+. Use the system one if it qualifies; otherwise fetch a standalone
-# CPython into ~/.sorryhumans/python — no sudo, no system changes.
+# Need Python 3.11+. Prefer an existing interpreter; on Windows/Git Bash it's usually
+# 'python' (not 'python3'), so try both. We decide by RUNNING it: the Microsoft Store
+# 'python'/'python3' stubs print no version, so they fail this check and are skipped.
+# If none qualifies, fetch a standalone CPython into ~/.sorryhumans/python (no sudo).
 PYEXE=""
-if command -v python3 >/dev/null 2>&1; then
-  _M=$(python3 -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo 0)
-  [ "$_M" -ge 11 ] 2>/dev/null && PYEXE="$(command -v python3)"
-fi
+for _cand in python3 python; do
+  command -v "$_cand" >/dev/null 2>&1 || continue
+  _V=$("$_cand" -c "import sys; print(sys.version_info[0]*100 + sys.version_info[1])" 2>/dev/null || echo 0)
+  if [ "${_V:-0}" -ge 311 ] 2>/dev/null; then PYEXE="$(command -v "$_cand")"; break; fi
+done
 if [ -z "$PYEXE" ] && [ -x "$HOME/.sorryhumans/python/bin/python3" ]; then
   PYEXE="$HOME/.sorryhumans/python/bin/python3"
 fi
 if [ -z "$PYEXE" ]; then
+  # On Windows (Git Bash/MSYS) we can't bootstrap a standalone CPython that works here,
+  # so point the user at a real install instead of failing cryptically.
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      printf "  No Python 3.11+ found on PATH. Install it, then re-run this command:\n"
+      printf "    ${BOLD}winget install Python.Python.3.12${RESET}\n"
+      printf "    — or get it from https://www.python.org/downloads/ and tick ${BOLD}\"Add python.exe to PATH\"${RESET}.\n"
+      printf "  (Already installed? Open a NEW Git Bash so PATH refreshes, then check: ${BOLD}python --version${RESET})\n"
+      exit 1 ;;
+  esac
   echo "  No Python 3.11+ found — fetching a standalone one (no sudo)..."
   PBS="20260602"; PYV="3.11.15"
   case "$(uname -s)-$(uname -m)" in
@@ -58,15 +71,17 @@ if [ -z "$PYEXE" ]; then
   echo "  Standalone Python ready."
 fi
 
-# Install into an isolated venv. This is robust on Debian/Ubuntu, where the
-# system python3 often has no usable pip. The venv brings its own pip.
+# Install into an isolated venv (brings its own pip; robust on Debian/Ubuntu where the
+# system python3 often has none). venv puts its binaries in bin/ on POSIX and Scripts/
+# on Windows — detect whichever exists.
 PKG="${DIST}/${WHEEL}"
 VENV="$HOME/.sorryhumans/venv"
-if [ ! -x "$VENV/bin/python" ]; then
-  "$PYEXE" -m venv "$VENV" 2>/dev/null || true
-fi
-if [ -x "$VENV/bin/python" ]; then
-  PYBIN="$VENV/bin/python"
+"$PYEXE" -m venv "$VENV" 2>/dev/null || true
+if   [ -x "$VENV/bin/python" ];        then VBIN="$VENV/bin"
+elif [ -x "$VENV/Scripts/python.exe" ]; then VBIN="$VENV/Scripts"
+else VBIN=""; fi
+if [ -n "$VBIN" ]; then
+  PYBIN="$VBIN/python"
 else
   # Fallback: bootstrap pip for the chosen python and install --user.
   "$PYEXE" -m ensurepip --upgrade >/dev/null 2>&1 || {
@@ -79,13 +94,20 @@ fi
   || "$PYBIN" -m pip install --quiet --upgrade --break-system-packages "$PKG"
 echo "  Connector installed."
 
-# Expose 'sorryhumans' on PATH for future use.
+# Pick how to run 'sorryhumans' now, and expose it on PATH for later. The console script
+# is 'sorryhumans' (bin/, POSIX) or 'sorryhumans.exe' (Scripts/, Windows).
 mkdir -p "$HOME/.local/bin"
-[ -x "$VENV/bin/sorryhumans" ] && ln -sf "$VENV/bin/sorryhumans" "$HOME/.local/bin/sorryhumans"
+if   [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans" ]; then
+  ln -sf "$VBIN/sorryhumans" "$HOME/.local/bin/sorryhumans" 2>/dev/null || true
+  RUN="$VBIN/sorryhumans"
+elif [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans.exe" ]; then
+  RUN="$VBIN/sorryhumans.exe"
+elif command -v sorryhumans >/dev/null 2>&1; then
+  RUN="sorryhumans"
+else
+  RUN="$PYBIN -m sorryhumans_pkg.cli"
+fi
 PATH="$HOME/.local/bin:$PATH"; export PATH
-if [ -x "$VENV/bin/sorryhumans" ]; then RUN="$VENV/bin/sorryhumans"
-elif command -v sorryhumans >/dev/null 2>&1; then RUN="sorryhumans"
-else RUN="python3 -m sorryhumans_pkg.cli"; fi
 
 # Install the /sorryhumans skill for Claude Code.
 SKILL_DIR="$HOME/.claude/skills/sorryhumans"
