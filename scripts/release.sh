@@ -1,6 +1,6 @@
 #!/bin/sh
-# Build the wheel and publish it (+ install.sh + SKILL.md) to the GCS bucket
-# that sorryhumans.dev/install.sh pulls from.
+# Build the wheel and publish it (+ install.sh + install.ps1 + SKILL.md) to the GCS
+# bucket that sorryhumans.dev/install.sh (sh/Git Bash) and /install.ps1 (PowerShell) use.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -15,6 +15,8 @@ echo "Built: $WHEEL"
 echo "Publishing to $BUCKET ..."
 gcloud storage cp "$WHEEL" "$BUCKET/"
 gcloud storage cp install.sh "$BUCKET/install.sh"
+gcloud storage cp install.ps1 "$BUCKET/install.ps1"
 gcloud storage cp .claude/skills/sorryhumans/SKILL.md "$BUCKET/SKILL.md"
 
-echo "Done. Bump the WHEEL= line in install.sh when the version changes."
+echo "Done. Al subir versión, bump WHEEL= en install.sh Y \$Wheel en install.ps1"
+echo "(y re-deploy del frontend: hornea public/install.sh y public/install.ps1)."
