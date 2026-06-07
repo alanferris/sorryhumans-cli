@@ -46,14 +46,11 @@ def cmd_summon(args):
 
 
 def _monitor_line(msg):
-    """Línea de preview del Monitor (listen --follow): tipo + remitente + body truncado a
-    140. El Monitor es solo para DESPERTAR al agente; si el cuerpo excede el preview, se
-    marca con '… [+N chars — usa check_messages]' para que el agente NO actúe sobre texto a
-    medias y lea el mensaje completo con check_messages (MCP)."""
-    full = msg.get("body") or ""
-    body = full[:140]
-    more = f" … [+{len(full) - 140} chars — usa check_messages]" if len(full) > 140 else ""
-    return f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}{more}"
+    """Línea del Monitor (listen --follow): tipo + remitente + body COMPLETO. El hive NO
+    debe cortar mensajes entre agentes, así que NO se trunca. Se colapsan los saltos de
+    línea a espacios para que cada mensaje quede como un solo evento legible del Monitor."""
+    body = " ".join((msg.get("body") or "").split())
+    return f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}"
 
 
 def cmd_listen(args):
