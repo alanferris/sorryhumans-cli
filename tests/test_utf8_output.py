@@ -47,3 +47,23 @@ def test_force_utf8_never_raises_on_odd_streams():
     with mock.patch.object(cli.sys, "stdout", NoReconfigure()), \
          mock.patch.object(cli.sys, "stderr", NoReconfigure()):
         cli._force_utf8_output()  # no debe propagar
+
+
+def test_main_skips_utf8_reconfigure_for_mcp(monkeypatch):
+    """main() NO debe reconfigurar stdout para 'mcp' (rompería el stdio JSON-RPC)."""
+    called = {"utf8": False}
+    monkeypatch.setattr(cli, "_force_utf8_output", lambda: called.__setitem__("utf8", True))
+    monkeypatch.setattr(cli, "cmd_mcp", lambda args: None)
+    monkeypatch.setattr(cli.sys, "argv", ["sorryhumans", "mcp"])
+    cli.main()
+    assert called["utf8"] is False
+
+
+def test_main_reconfigures_utf8_for_console_commands(monkeypatch):
+    """Para comandos de consola (p. ej. hive) SÍ reconfigura."""
+    called = {"utf8": False}
+    monkeypatch.setattr(cli, "_force_utf8_output", lambda: called.__setitem__("utf8", True))
+    monkeypatch.setattr(cli, "cmd_hive", lambda args: None)
+    monkeypatch.setattr(cli.sys, "argv", ["sorryhumans", "hive"])
+    cli.main()
+    assert called["utf8"] is True
