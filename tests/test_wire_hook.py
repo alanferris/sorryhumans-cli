@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sorryhumans_pkg import cli
 
-NEWCMD = '"/home/u/.sorryhumans/venv/Scripts/sorryhumans.exe" hook-context'
+NEWCMD = "C:\\Users\\u\\.sorryhumans\\venv\\Scripts\\sorryhumans.exe hook-context"
 
 
 def _settings(home):
