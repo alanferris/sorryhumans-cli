@@ -123,7 +123,12 @@ def _force_utf8_output():
 
 
 def main():
-    _force_utf8_output()
+    # UTF-8 tolerante para la salida de consola (evita que el emoji del Monitor mate el
+    # proceso en cp1252). PERO NO para el MCP server: habla JSON-RPC por stdio y
+    # reconfigurar stdout rompe el transporte → el cliente queda en timeout (30s) y el
+    # MCP figura "not connected". El server mcp no necesita esto: no imprime a consola.
+    if sys.argv[1:2] != ["mcp"]:
+        _force_utf8_output()
     parser = argparse.ArgumentParser(
         prog="sorryhumans",
         description=__doc__,
