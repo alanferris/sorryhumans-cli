@@ -182,11 +182,53 @@ def main():
     p_setaut.add_argument("skip", nargs="?", default="1")
     p_setaut.set_defaults(func=cmd_set_autonomy)
 
+    # Comando mal tecleado: en vez del 'invalid choice' seco de argparse, sugerir el
+    # más parecido y ofrecer la lista de comandos como menú seleccionable.
+    argv = sys.argv[1:]
+    if "-h" not in argv and "--help" not in argv:
+        first = next((a for a in argv if not a.startswith("-")), None)
+        if first is not None and first not in sub.choices:
+            chosen = _suggest_command(sub, first)
+            if not chosen:
+                sys.exit(1)
+            sys.argv = [sys.argv[0], chosen]
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
-    args.func(args)
+    try:
+        args.func(args)
+    except KeyboardInterrupt:
+        # Ctrl+C fuera de un prompt (p. ej. durante una llamada de red): salir limpio.
+        sys.stderr.write("\n")
+        sys.exit(130)
+
+
+def _suggest_command(sub, typed):
+    """Comando desconocido: muestra el más parecido + la lista de comandos de usuario
+    como menú seleccionable. Devuelve el comando elegido, o None si se cancela."""
+    import difflib
+    cmds = [(a.dest, a.help or "") for a in sub._get_subactions()]  # solo los con help (de usuario)
+    names = [c for c, _ in cmds]
+    near = difflib.get_close_matches(typed, names, n=1, cutoff=0.5)
+    if near:
+        print(f"\n  '{typed}' isn't a command. Did you mean '{near[0]}'?")
+    else:
+        print(f"\n  '{typed}' isn't a command.")
+    print("\n  Commands:\n")
+    width = max((len(n) for n in names), default=0)
+    for i, (name, help_) in enumerate(cmds, 1):
+        print(f"    {i:>2}) {name:<{width}}  {help_}")
+    default = str(names.index(near[0]) + 1) if near else ""
+    hint = default if default else "number, or Enter to cancel"
+    sel = _ask(f"\n  Run which? [{hint}]: ", default)
+    if not sel:
+        return None
+    try:
+        return cmds[int(sel) - 1][0]          # eligió por número
+    except (ValueError, IndexError):
+        return sel if sel in names else None   # o tecleó el nombre del comando
 
 
 def cmd_start(args):
@@ -471,7 +513,12 @@ def _ask(prompt, default=""):
     try:
         v = input(prompt)
         return v.strip() or default
+    except KeyboardInterrupt:
+        # Ctrl+C en un prompt: salir limpio, sin traceback.
+        sys.stderr.write("\n")
+        raise SystemExit(130)
     except Exception:
+        # EOF (no interactivo, p. ej. 'curl | sh') u otros: usar el default.
         return default
 
 
