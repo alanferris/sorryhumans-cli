@@ -402,20 +402,23 @@ def cmd_connect(args):
 
 def _hook_command() -> str:
     """Comando del hook SessionStart: ruta COMPLETA al ejecutable real del venv —
-    Scripts\\sorryhumans.exe en Windows, bin/sorryhumans en POSIX. Si caemos a
+    Scripts/sorryhumans.exe en Windows, bin/sorryhumans en POSIX. Si caemos a
     'sorryhumans' a secas en Windows, éste resuelve a un binario SIN extensión y Claude
     Code dispara el diálogo "¿con qué app abrir esto?"; la ruta completa al .exe lo evita.
 
-    La ruta va SIN comillas: Claude Code ejecuta el hook con el shell del SO — PowerShell
-    en Windows— y en PowerShell `"ruta" arg` es error de parseo (token inesperado tras el
-    string literal). Una ruta a secas se ejecuta bien en PowerShell, cmd y sh. (Limitación
+    Formato a prueba de shells: FORWARD SLASHES y SIN comillas. Claude Code en Windows
+    ejecuta el hook con distintos shells según la máquina (PowerShell o /usr/bin/bash de
+    Git Bash) y no lo controlamos:
+      - comillas → PowerShell parsea `"ruta" arg` como string + token inesperado (rompe).
+      - backslashes → bash los trata como escape (C:\\Users → C:Users) y no encuentra el .exe.
+    Una ruta con '/' y sin comillas se ejecuta bien en bash, PowerShell y cmd. (Limitación
     conocida: un path con espacios rompería; los dirs de instalación no los tienen.)"""
     import os
     venv = os.path.expanduser("~/.sorryhumans/venv")
     for c in (os.path.join(venv, "Scripts", "sorryhumans.exe"),  # Windows
               os.path.join(venv, "bin", "sorryhumans")):         # POSIX
         if os.path.exists(c):
-            return f"{c} hook-context"
+            return f"{c.replace(chr(92), '/')} hook-context"  # chr(92)='\\' -> '/'
     return "sorryhumans hook-context"
 
 
