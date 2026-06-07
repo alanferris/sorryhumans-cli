@@ -34,3 +34,15 @@ def test_hook_command_falls_back_when_no_venv():
     """Sin venv detectable: 'sorryhumans hook-context' (último recurso)."""
     with mock.patch("os.path.exists", lambda p: False):
         assert cli._hook_command() == "sorryhumans hook-context"
+
+
+def test_hook_command_windows_uses_forward_slashes(monkeypatch):
+    """Simula Windows (rutas con backslash) -> el comando sale con '/' y sin comillas,
+    así no rompe ni en bash (escape de \\) ni en PowerShell (comillas)."""
+    import ntpath
+    monkeypatch.setattr("os.path.expanduser", lambda p: "C:\\Users\\elian\\.sorryhumans\\venv")
+    monkeypatch.setattr("os.path.join", ntpath.join)
+    monkeypatch.setattr("os.path.exists", lambda p: p.endswith("sorryhumans.exe"))
+    cmd = cli._hook_command()
+    assert cmd == "C:/Users/elian/.sorryhumans/venv/Scripts/sorryhumans.exe hook-context"
+    assert "\\" not in cmd and '"' not in cmd
