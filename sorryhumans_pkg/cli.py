@@ -45,6 +45,14 @@ def cmd_summon(args):
     print(f"{name} is awake.")
 
 
+def _monitor_line(msg):
+    """Línea del Monitor (listen --follow): tipo + remitente + body COMPLETO. El hive NO
+    debe cortar mensajes entre agentes, así que NO se trunca. Se colapsan los saltos de
+    línea a espacios para que cada mensaje quede como un solo evento legible del Monitor."""
+    body = " ".join((msg.get("body") or "").split())
+    return f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}"
+
+
 def cmd_listen(args):
     """
     Long-poll the hive bus. Default: exits the moment something arrives.
@@ -75,8 +83,7 @@ def cmd_listen(args):
                 if msg.get("from_agent") == agent_id:
                     continue  # no te despiertes con tus propios mensajes
                 if follow:
-                    body = (msg.get("body") or "")[:140]
-                    print(f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}", flush=True)
+                    print(_monitor_line(msg), flush=True)
                 else:
                     print(json.dumps(msg))
             if not follow:
