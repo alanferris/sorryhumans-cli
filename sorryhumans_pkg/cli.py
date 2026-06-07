@@ -431,20 +431,33 @@ def _wire_session_hook() -> None:
     ss = hooks.setdefault("SessionStart", [])
     if not isinstance(ss, list):
         ss = hooks["SessionStart"] = []
-    present = any(
-        isinstance(e, dict) and any("hook-context" in h.get("command", "")
-                                    for h in e.get("hooks", []) if isinstance(h, dict))
-        for e in ss
-    )
-    if present:
+    # Si ya hay un hook hook-context, CORREGIR su comando si difiere (p. ej. una
+    # instalación vieja en Windows con la ruta sin .exe que disparaba el diálogo "abrir
+    # con…"). Solo saltar si no hay que escribir nada. Antes esto se saltaba siempre que
+    # existiera, así que un re-connect nunca reparaba instalaciones viejas.
+    found = False
+    changed = False
+    for e in ss:
+        if not isinstance(e, dict):
+            continue
+        for h in e.get("hooks", []):
+            if isinstance(h, dict) and "hook-context" in h.get("command", ""):
+                found = True
+                if h.get("command") != cmd:
+                    h["command"] = cmd
+                    changed = True
+    if not found:
+        ss.append({"matcher": "startup",
+                   "hooks": [{"type": "command", "command": cmd, "timeout": 15}]})
+        changed = True
+    if not changed:
         return
-    ss.append({"matcher": "startup",
-               "hooks": [{"type": "command", "command": cmd, "timeout": 15}]})
     try:
         os.makedirs(os.path.dirname(sp), exist_ok=True)
         with open(sp, "w") as f:
             _json.dump(data, f, indent=2)
-        print("  Session hook installed (arms the Monitor + loads your project brief at start).")
+        msg = "updated" if found else "installed"
+        print(f"  Session hook {msg} (arms the Monitor + loads your project brief at start).")
     except Exception:
         pass
 
