@@ -14,19 +14,20 @@ POSIX = os.path.expanduser("~/.sorryhumans/venv") + os.sep + os.path.join("bin",
 
 
 def test_hook_command_windows_uses_exe_full_path():
-    """Existe Scripts\\sorryhumans.exe -> se usa esa ruta completa (citada), con hook-context."""
+    """Existe Scripts\\sorryhumans.exe -> ruta completa SIN comillas (PowerShell la ejecuta)."""
     with mock.patch("os.path.exists", lambda p: p.endswith(os.path.join("Scripts", "sorryhumans.exe"))):
         cmd = cli._hook_command()
-    assert cmd.endswith('sorryhumans.exe" hook-context')
+    assert cmd.endswith("sorryhumans.exe hook-context")
     assert "Scripts" in cmd
-    assert cmd.startswith('"')              # citado por si hay espacios
+    assert '"' not in cmd                   # SIN comillas: en PowerShell romperían el parseo
 
 
 def test_hook_command_posix_uses_bin_full_path():
     with mock.patch("os.path.exists", lambda p: p.endswith(os.path.join("bin", "sorryhumans"))):
         cmd = cli._hook_command()
-    assert cmd.endswith('bin' + os.sep + 'sorryhumans" hook-context') or cmd.endswith('/sorryhumans" hook-context')
-    assert cmd.startswith('"')
+    assert cmd.endswith("sorryhumans hook-context")
+    assert os.path.join("bin", "sorryhumans") in cmd or "/sorryhumans hook-context" in cmd
+    assert '"' not in cmd
 
 
 def test_hook_command_falls_back_when_no_venv():
