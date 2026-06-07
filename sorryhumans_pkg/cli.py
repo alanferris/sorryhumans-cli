@@ -388,7 +388,14 @@ def cmd_hook_context(args):
     (best-effort: si el bus falla, igual emite el mandato del Monitor)."""
     import json as _json
     import urllib.request
-    cfg = config.active()   # proyecto activo: env > .sorryhumans > default
+    # El hook corre al arrancar CUALQUIER sesión de Claude Code (settings global).
+    # Solo debe inyectar si ESTA sesión está atada explícitamente a un proyecto
+    # (env SORRYHUMANS_PROJECT o marker .sorryhumans en cwd/padres). Sin binding NO
+    # es una terminal del hive: emitimos additionalContext vacío y la dejamos limpia.
+    if not config.active_project_id():
+        print(_json.dumps({}))
+        return
+    cfg = config.active()   # proyecto activo: env > .sorryhumans (binding ya garantizado)
     key = cfg.get("api_key", "")
     team = cfg.get("team_id", "")
     uid = cfg.get("member_uid", "")
