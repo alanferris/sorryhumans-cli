@@ -110,7 +110,20 @@ def cmd_hive(args):
         print(f"  {a['name']}  {status}")
 
 
+def _force_utf8_output():
+    """En Windows la consola por defecto es cp1252 y no puede codificar emojis (p. ej. el
+    📬 de 'listen --follow'), lo que mata el Monitor con UnicodeEncodeError —y el Monitor
+    es la columna del producto. Forzamos UTF-8 con errores tolerantes para que la salida
+    nunca tumbe el proceso (degrada con '?' si la terminal no soporta el glifo)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main():
+    _force_utf8_output()
     parser = argparse.ArgumentParser(
         prog="sorryhumans",
         description=__doc__,
