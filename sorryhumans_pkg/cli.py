@@ -395,6 +395,21 @@ def cmd_connect(args):
     print("\n  Done. This machine is in the hive.")
 
 
+def _hook_command() -> str:
+    """Comando del hook SessionStart: ruta COMPLETA al ejecutable real del venv —
+    Scripts\\sorryhumans.exe en Windows, bin/sorryhumans en POSIX— citada por si el
+    path del usuario tiene espacios. Si caemos a 'sorryhumans' a secas en Windows, éste
+    resuelve a un binario SIN extensión y Claude Code, al correr el hook, dispara el
+    diálogo "¿con qué app abrir esto?". La ruta completa al .exe lo evita."""
+    import os
+    venv = os.path.expanduser("~/.sorryhumans/venv")
+    for c in (os.path.join(venv, "Scripts", "sorryhumans.exe"),  # Windows
+              os.path.join(venv, "bin", "sorryhumans")):         # POSIX
+        if os.path.exists(c):
+            return f'"{c}" hook-context'
+    return "sorryhumans hook-context"
+
+
 def _wire_session_hook() -> None:
     """Instala un hook SessionStart en ~/.claude/settings.json que, al arrancar cada
     sesión de Claude Code, inyecta como directiva fuerte (additionalContext): armar el
@@ -409,10 +424,7 @@ def _wire_session_hook() -> None:
         data = {}
     if not isinstance(data, dict):
         data = {}
-    bin_path = os.path.expanduser("~/.sorryhumans/venv/bin/sorryhumans")
-    if not os.path.exists(bin_path):
-        bin_path = "sorryhumans"
-    cmd = f"{bin_path} hook-context"
+    cmd = _hook_command()
     hooks = data.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         hooks = data["hooks"] = {}

@@ -14,7 +14,7 @@ set -e
 PROJECT="${1:-}"
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.20-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.21-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 # Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
@@ -97,11 +97,14 @@ echo "  Connector installed."
 # Pick how to run 'sorryhumans' now, and expose it on PATH for later. The console script
 # is 'sorryhumans' (bin/, POSIX) or 'sorryhumans.exe' (Scripts/, Windows).
 mkdir -p "$HOME/.local/bin"
-if   [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans" ]; then
+if   [ -n "$VBIN" ] && [ -f "$VBIN/sorryhumans.exe" ]; then
+  # Windows: usar el .exe directamente. NO creamos un symlink sin extensión en
+  # .local/bin — Windows no sabe ejecutar un archivo sin .exe y, cuando Claude Code
+  # corre algo que lo invoca, dispara el diálogo "¿con qué app abrir esto?".
+  RUN="$VBIN/sorryhumans.exe"
+elif [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans" ]; then
   ln -sf "$VBIN/sorryhumans" "$HOME/.local/bin/sorryhumans" 2>/dev/null || true
   RUN="$VBIN/sorryhumans"
-elif [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans.exe" ]; then
-  RUN="$VBIN/sorryhumans.exe"
 elif command -v sorryhumans >/dev/null 2>&1; then
   RUN="sorryhumans"
 else
