@@ -45,6 +45,17 @@ def cmd_summon(args):
     print(f"{name} is awake.")
 
 
+def _monitor_line(msg):
+    """Línea de preview del Monitor (listen --follow): tipo + remitente + body truncado a
+    140. El Monitor es solo para DESPERTAR al agente; si el cuerpo excede el preview, se
+    marca con '… [+N chars — usa check_messages]' para que el agente NO actúe sobre texto a
+    medias y lea el mensaje completo con check_messages (MCP)."""
+    full = msg.get("body") or ""
+    body = full[:140]
+    more = f" … [+{len(full) - 140} chars — usa check_messages]" if len(full) > 140 else ""
+    return f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}{more}"
+
+
 def cmd_listen(args):
     """
     Long-poll the hive bus. Default: exits the moment something arrives.
@@ -75,8 +86,7 @@ def cmd_listen(args):
                 if msg.get("from_agent") == agent_id:
                     continue  # no te despiertes con tus propios mensajes
                 if follow:
-                    body = (msg.get("body") or "")[:140]
-                    print(f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}", flush=True)
+                    print(_monitor_line(msg), flush=True)
                 else:
                     print(json.dumps(msg))
             if not follow:
