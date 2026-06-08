@@ -201,3 +201,32 @@ def test_invalid_key_is_rejected(backend):
     r = requests.get(f"{backend}/v1/agents",
                      headers={"Authorization": "Bearer am_live_boguskey"})
     assert r.status_code in (401, 403)
+
+
+def test_read_receipts_end_to_end(backend):
+    """Escalera completa contra el bus real: enviado → entregado (B baja) → leído (B marca),
+    y el emisor A lo ve vía message_status."""
+    codes = cli_client.device_code(backend, machine_hint="rcpt-a", role="agent")
+    ut = _browser_login(backend, "rcpt@x.com", "rcpt-sub")
+    pid = _browser_create_project(backend, ut, "rcpt-project")
+    _browser_approve(backend, ut, codes["user_code"], pid)
+    _, tok = cli_client.device_token(backend, codes["device_code"])
+    api_key = tok["api_key"]
+
+    a = cli_client.register(backend, api_key, "rcpt-a", []).get("agent_id")
+    b = cli_client.register(backend, api_key, "rcpt-b", []).get("agent_id")
+
+    # Enviado: A → B
+    mid = cli_client.send(backend, api_key, a, b, "task", "do x")["message_id"]
+    st0 = cli_client.message_status(backend, api_key, mid)
+    assert st0["delivered"] == {} and st0["read"] == {}    # ✓ solo enviado
+
+    # Entregado: la máquina de B baja sus mensajes
+    cli_client.listen_once(backend, api_key, b, "0")
+    st1 = cli_client.message_status(backend, api_key, mid)
+    assert b in st1["delivered"] and b not in st1["read"]   # ✓✓ entregado
+
+    # Leído: B se lo muestra a su humano y lo marca
+    cli_client.mark_read(backend, api_key, mid, b)
+    st2 = cli_client.message_status(backend, api_key, mid)
+    assert b in st2["delivered"] and b in st2["read"]       # ✓✓ azul leído

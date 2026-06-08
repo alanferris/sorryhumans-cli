@@ -95,3 +95,26 @@ def list_agents(base_url: str, api_key: str) -> list:
     r = requests.get(f"{base_url}/v1/agents", headers=_headers(api_key), timeout=10)
     r.raise_for_status()
     return r.json().get("agents", [])
+
+
+def mark_read(base_url: str, api_key: str, message_id: str, agent_id: str) -> dict:
+    """Recibo 'leído' (✓✓ azul): `agent_id` se lo mostró a su humano."""
+    r = requests.post(
+        f"{base_url}/v1/messages/{message_id}/read",
+        json={"agent_id": agent_id},
+        headers=_headers(api_key),
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def message_status(base_url: str, api_key: str, message_id: str) -> dict:
+    """Estado de un mensaje (recibos delivered/read) — vista del emisor."""
+    r = requests.get(
+        f"{base_url}/v1/messages/{message_id}",
+        headers=_headers(api_key),
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()

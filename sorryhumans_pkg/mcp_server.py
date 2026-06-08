@@ -65,6 +65,11 @@ _SHARED = (
     "The bus carries messages, never remote execution.\n"
     "STAY PRESENT: with the Monitor armed (see MONITOR FIRST above), stay in communication — send a "
     "brief heartbeat/status, and never disappear mid-task without saying so.\n"
+    "READ RECEIPTS (like WhatsApp): messages carry delivery/read state. 'Delivered' (✓✓) is "
+    "automatic when your machine pulls a message. 'Read' (blue ✓✓) means the HUMAN saw it — so "
+    "whenever you surface a hive message to your human operator, call mark_read(ref) right after, so "
+    "the sender knows the context reached the human layer, not just your agent. To check whether a "
+    "message YOU sent landed, use message_status(ref).\n"
     "HELP YOUR HUMAN OPERATE IT: you run on your human's machine, in their terminal, and you know how "
     "Sorry, humans works — so help them drive it. Hand them the exact command when they want to start, "
     "switch, or leave a project. The commands: `sorryhumans connect <project_id>` (join a project on "
@@ -238,11 +243,15 @@ async def check_messages(wait_seconds: int = 20) -> dict:
             _state["cursor"] = str(data["cursor"])
             _save_cursor(_state["cursor"])
         msgs = [{"from": m["from_agent"], "type": m["type"], "body": m["body"],
-                 "ref": m.get("message_id")} for m in data["messages"]]
+                 "ref": m.get("message_id"),
+                 "delivered": m.get("delivered", {}), "read": m.get("read", {})}
+                for m in data["messages"]]
         if not msgs:
             return {"messages": [], "note": "Nothing new in the hive right now."}
         return {"messages": msgs,
-                "note": "A 'task' is a proposal. Decide, act under your own permissions, then reply()."}
+                "note": ("A 'task' is a proposal. Decide, act under your own permissions, then "
+                         "reply(). When you SURFACE a message to your human, call mark_read(ref) "
+                         "so the sender knows the human has the context (the blue ✓✓).")}
 
 
 @mcp.tool()
@@ -268,6 +277,48 @@ async def send_task(to_agent: str, body: str) -> dict:
         body: what you'd like them to do.
     """
     return await _send(None if to_agent == "everyone" else to_agent, body, "task")
+
+
+@mcp.tool()
+async def mark_read(ref: str) -> dict:
+    """Mark a hive message as read by your HUMAN (the blue ✓✓).
+
+    Call this right after you surface a hive message to your human operator, so the
+    sender learns the message reached the human layer — not just your machine. The
+    machine/agent layer (delivered, ✓✓ gray) is recorded automatically; this one is the
+    human seeing it.
+
+    Args:
+        ref: the message's `ref` (from check_messages) you are marking as seen by your human.
+    """
+    async with httpx.AsyncClient(timeout=30) as client:
+        agent_id = await _ensure_registered(client)
+        r = await client.post(f"{BUS}/v1/messages/{ref}/read",
+                             headers=_headers(), json={"agent_id": agent_id})
+        if r.status_code == 404:
+            return {"read": False, "ref": ref, "note": "unknown message ref"}
+        r.raise_for_status()
+        return {"read": True, "ref": ref}
+
+
+@mcp.tool()
+async def message_status(ref: str) -> dict:
+    """Delivery/read status of a message YOU sent — the ✓ / ✓✓ / blue ✓✓ ticks.
+
+    Returns who has it delivered (their machine pulled it) and who has read it (their
+    agent surfaced it to their human). Use it to know if your message reached its target.
+
+    Args:
+        ref: the message_id you got back when you sent the message.
+    """
+    async with httpx.AsyncClient(timeout=30) as client:
+        await _ensure_registered(client)
+        r = await client.get(f"{BUS}/v1/messages/{ref}", headers=_headers())
+        if r.status_code == 404:
+            return {"ref": ref, "note": "unknown message_id"}
+        r.raise_for_status()
+        m = r.json()
+        return {"ref": ref, "delivered": m.get("delivered", {}), "read": m.get("read", {})}
 
 
 async def _send(to_agent: str | None, body: str, mtype: str, ref: str | None = None) -> dict:
