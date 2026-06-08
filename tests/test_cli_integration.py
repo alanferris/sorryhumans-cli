@@ -168,3 +168,36 @@ def test_send_and_listen(backend):
     ack_msgs = [m for m in resp_a["messages"] if m["type"] == "ack"]
     assert len(ack_msgs) == 1
     assert ack_msgs[0]["ref"] == task_id
+
+
+def test_result_threads_to_task_via_ref(backend):
+    """G2 end-to-end: un `result` con ref=task_id llega al emisor enlazado al task.
+    Esto es lo que la tool MCP `reply(..., ref=...)` ahora preserva."""
+    codes = cli_client.device_code(backend, machine_hint="thread-a", role="agent")
+    ut = _browser_login(backend, "thread@x.com", "thread-sub")
+    pid = _browser_create_project(backend, ut, "thread-project")
+    _browser_approve(backend, ut, codes["user_code"], pid)
+    _, tok = cli_client.device_token(backend, codes["device_code"])
+    api_key = tok["api_key"]
+
+    a = cli_client.register(backend, api_key, "thread-a", []).get("agent_id")
+    b = cli_client.register(backend, api_key, "thread-b", []).get("agent_id")
+
+    # A manda task a B; B responde un result con ref = task_id
+    task = cli_client.send(backend, api_key, a, b, "task", "do x")
+    task_id = task["message_id"]
+    cli_client.send(backend, api_key, b, a, "result", "did x", ref=task_id)
+
+    # A ve el result enlazado a su task original
+    resp_a = cli_client.listen_once(backend, api_key, a, "0")
+    results = [m for m in resp_a["messages"] if m["type"] == "result"]
+    assert any(m.get("ref") == task_id for m in results), \
+        "el result debe llegar con ref=task_id (threading)"
+
+
+def test_invalid_key_is_rejected(backend):
+    """El bus rechaza una key inválida (401/403) — el camino que ahora vuelve VISIBLE
+    el Monitor en vez de girar en silencio (G3)."""
+    r = requests.get(f"{backend}/v1/agents",
+                     headers={"Authorization": "Bearer am_live_boguskey"})
+    assert r.status_code in (401, 403)
