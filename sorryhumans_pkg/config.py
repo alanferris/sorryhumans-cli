@@ -118,6 +118,35 @@ def active() -> dict:
     return load()
 
 
+def save_active(data: dict) -> None:
+    """Persist config for the active project (its projects/<id>.json when bound,
+    else the default config.json). Keeps per-project state — e.g. listen cursors —
+    from bleeding across projects on a multi-project machine."""
+    pid = active_project_id()
+    if pid and load_project(pid):
+        save_project(pid, data)
+    else:
+        save(data)
+
+
+def get_active(key: str, env_fallback: str = None):
+    """Like get(), but reads from the ACTIVE project's config (env > marker >
+    default), so per-session commands honor the project this window is bound to."""
+    value = active().get(key)
+    if value is None and env_fallback:
+        value = os.environ.get(env_fallback)
+    return value
+
+
+def require_active(key: str, env_fallback: str = None):
+    value = get_active(key, env_fallback)
+    if not value:
+        raise SystemExit(
+            f"ERROR: '{key}' not configured. Run: sorryhumans connect"
+        )
+    return value
+
+
 def get(key: str, env_fallback: str = None):
     value = load().get(key)
     if value is None and env_fallback:

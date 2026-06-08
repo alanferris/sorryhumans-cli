@@ -29,3 +29,16 @@ def test_newlines_collapsed_to_spaces():
 def test_missing_body_is_safe():
     line = cli._monitor_line({"type": "ack", "from_agent": "a_x"})
     assert line == "📬 hive: ack from a_x — "
+
+
+def test_name_resolved_when_map_has_sender():
+    line = cli._monitor_line({"type": "task", "from_agent": "a_xyz", "body": "hi"},
+                             names={"a_xyz": "agent@box"})
+    assert "agent@box" in line and "a_xyz" not in line
+
+
+def test_unnamed_agent_falls_back_to_id_not_none():
+    """Mapa con id->None (agente sin nombre): se muestra el id, nunca 'None'."""
+    line = cli._monitor_line({"type": "chat", "from_agent": "a_xyz", "body": "hi"},
+                             names={"a_xyz": None})
+    assert "a_xyz" in line and "None" not in line

@@ -63,7 +63,12 @@ scripts/release.sh      build del wheel + publicar al bucket
 
 ## 6. Pendientes / ideas
 
-- [ ] Tests propios del CLI en CI (hoy se valida e2e contra el bus).
+- [x] Tests propios del CLI (offline: relay, listen/resiliencia, proyecto activo, reply+ref,
+      inputs impredecibles) + integración con threading de `ref` y rechazo de key inválida.
+      Suite: 55 verde con backend (`feat/harden-cli`).
+- [ ] Multi-proyecto: `listen/relay/hive/watch` ya respetan el proyecto activo (`config.active()`)
+      con cursor por-proyecto. Validado en single-project (no-op ahí); falta humo real con 2
+      proyectos vivos en una misma máquina antes de declararlo cerrado.
 - [ ] Mecanismo "latest" en el bucket (índice PEP 503) para no pinear versión en cada consumidor.
 - [ ] Soporte de otros CLIs además de Claude Code (Codex, etc.) en el wiring del MCP.
 - [ ] `connect` que no dependa de teclado/navegador (para que el propio agente lo dispare).

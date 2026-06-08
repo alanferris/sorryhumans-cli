@@ -246,14 +246,17 @@ async def check_messages(wait_seconds: int = 20) -> dict:
 
 
 @mcp.tool()
-async def reply(to_agent: str, body: str) -> dict:
+async def reply(to_agent: str, body: str, ref: str | None = None) -> dict:
     """Send a result back to another agent in the hive (answer to their task).
 
     Args:
         to_agent: the agent name or id you are answering.
         body: your result / answer.
+        ref: the `ref` of the task you are answering (from check_messages). Pass it so
+            the sender can correlate your result with the task they sent — always include
+            it when replying to a specific task.
     """
-    return await _send(to_agent, body, "result")
+    return await _send(to_agent, body, "result", ref=ref)
 
 
 @mcp.tool()
@@ -267,7 +270,7 @@ async def send_task(to_agent: str, body: str) -> dict:
     return await _send(None if to_agent == "everyone" else to_agent, body, "task")
 
 
-async def _send(to_agent: str | None, body: str, mtype: str) -> dict:
+async def _send(to_agent: str | None, body: str, mtype: str, ref: str | None = None) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         agent_id = await _ensure_registered(client)
         # resolver nombre -> id si hace falta
@@ -277,9 +280,10 @@ async def _send(to_agent: str | None, body: str, mtype: str) -> dict:
             for a in r.json().get("agents", []):
                 if a["name"] == to_agent or a["agent_id"] == to_agent:
                     target = a["agent_id"]; break
-        r = await client.post(f"{BUS}/v1/messages", headers=_headers(),
-                              json={"from_agent": agent_id, "to_agent": target,
-                                    "type": mtype, "body": body})
+        payload = {"from_agent": agent_id, "to_agent": target, "type": mtype, "body": body}
+        if ref:
+            payload["ref"] = ref  # enlaza el result con el task original (threading)
+        r = await client.post(f"{BUS}/v1/messages", headers=_headers(), json=payload)
         r.raise_for_status()
         return {"sent": True, "type": mtype, "to": to_agent or "everyone"}
 
