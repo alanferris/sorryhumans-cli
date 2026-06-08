@@ -23,7 +23,9 @@ DEFAULT_BASE_URL = "https://api.sorryhumans.dev"
 
 def _base_url() -> str:
     import os
-    return os.environ.get("SORRYHUMANS_BASE_URL", config.get("base_url") or DEFAULT_BASE_URL)
+    # Active project's bus (env > marker > default), so a multi-project window talks to
+    # the right bus. In single-project active()==default, so this is a no-op there.
+    return os.environ.get("SORRYHUMANS_BASE_URL", config.get_active("base_url") or DEFAULT_BASE_URL)
 
 
 def cmd_summon(args):
@@ -45,12 +47,25 @@ def cmd_summon(args):
     print(f"{name} is awake.")
 
 
-def _monitor_line(msg):
+def _monitor_line(msg, names=None):
     """Línea del Monitor (listen --follow): tipo + remitente + body COMPLETO. El hive NO
     debe cortar mensajes entre agentes, así que NO se trunca. Se colapsan los saltos de
-    línea a espacios para que cada mensaje quede como un solo evento legible del Monitor."""
+    línea a espacios para que cada mensaje quede como un solo evento legible del Monitor.
+    Si `names` (mapa agent_id→nombre) trae al remitente, se muestra su nombre legible
+    (p. ej. 'agent@maquina') en vez del id crudo ('a_4b4b25fcbd2d')."""
     body = " ".join((msg.get("body") or "").split())
-    return f"📬 hive: {msg.get('type')} from {msg.get('from_agent')} — {body}"
+    sender = msg.get("from_agent")
+    if names:
+        # `or sender`: si el agente no tiene nombre (mapeo a None) caemos al id, nunca 'None'.
+        sender = names.get(sender) or sender
+    return f"📬 hive: {msg.get('type')} from {sender} — {body}"
+
+
+def _auth_failed(exc) -> bool:
+    """True si la excepción es un rechazo de autenticación del bus (key revocada/ inválida).
+    listen_once hace raise_for_status, así que un 401/403 llega como HTTPError con .response."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status in (401, 403)
 
 
 def cmd_listen(args):
@@ -61,14 +76,23 @@ def cmd_listen(args):
     message arrives (zero tokens while idle), exactly like a persistent watcher.
     """
     follow   = getattr(args, "follow", False)
-    api_key  = config.require("api_key", "SORRYHUMANS_KEY")
-    agent_id = config.require("agent_id")
-    since    = config.get("listen_cursor") or "0"
+    api_key  = config.require_active("api_key", "SORRYHUMANS_KEY")
+    agent_id = config.require_active("agent_id")
+    base     = _base_url()
+    since    = config.get_active("listen_cursor") or "0"
+    names    = {}  # agent_id -> nombre legible, refrescado cuando aparece un remitente nuevo
 
     while True:
         try:
-            result = client.listen_once(_base_url(), api_key, agent_id, since)
-        except Exception:
+            result = client.listen_once(base, api_key, agent_id, since)
+        except Exception as e:
+            # Una key revocada/inválida (401/403) deja la espina sorda: no gires en
+            # silencio para siempre. Emití UN evento claro (despierta al agente para que
+            # avise al humano) y salí con código ≠ 0 para que el Monitor reporte el fin.
+            if _auth_failed(e):
+                print("📵 hive: connection rejected — your key may have been revoked. "
+                      "Reconnect with: sorryhumans connect", flush=True)
+                sys.exit(2)
             import time as _t
             _t.sleep(3)
             continue
@@ -76,14 +100,23 @@ def cmd_listen(args):
         since    = result.get("cursor", since)
 
         if messages:
-            cfg = config.load()
+            cfg = config.active()
             cfg["listen_cursor"] = since
-            config.save(cfg)
+            config.save_active(cfg)
+            # Resolvé nombres legibles solo si aparece un remitente desconocido (1 llamada
+            # por batch como mucho, no por mensaje).
+            if follow and any(m.get("from_agent") not in names
+                              and m.get("from_agent") != agent_id for m in messages):
+                try:
+                    names = {a.get("agent_id"): a.get("name")
+                             for a in client.list_agents(base, api_key)}
+                except Exception:
+                    pass
             for msg in messages:
                 if msg.get("from_agent") == agent_id:
                     continue  # no te despiertes con tus propios mensajes
                 if follow:
-                    print(_monitor_line(msg), flush=True)
+                    print(_monitor_line(msg, names), flush=True)
                 else:
                     print(json.dumps(msg))
             if not follow:
@@ -91,23 +124,36 @@ def cmd_listen(args):
 
 
 def cmd_relay(args):
-    api_key  = config.require("api_key", "SORRYHUMANS_KEY")
-    agent_id = config.require("agent_id")
+    api_key  = config.require_active("api_key", "SORRYHUMANS_KEY")
+    agent_id = config.require_active("agent_id")
+    base     = _base_url()
 
     to = args.to if hasattr(args, "to") and args.to else None
-    result = client.send(
-        _base_url(), api_key,
+    # Resolvé nombre→id como hace el MCP _send, así --to acepta un nombre amistoso
+    # ('agent@maquina') y no solo el id crudo.
+    target = to
+    if to:
+        try:
+            for a in client.list_agents(base, api_key):
+                if a.get("name") == to or a.get("agent_id") == to:
+                    target = a.get("agent_id")
+                    break
+        except Exception:
+            pass
+    client.send(
+        base, api_key,
         from_agent=agent_id,
-        to_agent=to,
+        to_agent=target,
         msg_type=args.type if hasattr(args, "type") and args.type else "chat",
         body=args.body,
         ref=getattr(args, "ref", None),
     )
-    _ = result  # sent
+    # Confirmá el envío: sin esto el dev no sabe si el mensaje salió.
+    print(f"  Sent to {to if to else 'your team'}.")
 
 
 def cmd_hive(args):
-    api_key = config.require("api_key", "SORRYHUMANS_KEY")
+    api_key = config.require_active("api_key", "SORRYHUMANS_KEY")
     agents = client.list_agents(_base_url(), api_key)
     if not agents:
         print("No agents awake.")
@@ -739,12 +785,12 @@ def cmd_watch(args):
     wake the local agent (claude headless) to do it and reply the result.
     """
     import time
-    api_key = config.require("api_key", "SORRYHUMANS_KEY")
-    agent_id = config.require("agent_id")
+    api_key = config.require_active("api_key", "SORRYHUMANS_KEY")
+    agent_id = config.require_active("agent_id")
     base = _base_url()
-    name = config.get("agent_name") or "agent"
+    name = config.get_active("agent_name") or "agent"
     auto = getattr(args, "auto", False)
-    since = config.get("watch_cursor") or "0"
+    since = config.get_active("watch_cursor") or "0"
     pending = {}  # task_id -> (sender, body): tasks sensibles esperando aprobación humana (--auto)
     print(f"{name} is watching the hive (auto={'on' if auto else 'off'}). Ctrl-C to stop.")
     while True:
@@ -754,9 +800,9 @@ def cmd_watch(args):
             time.sleep(3)
             continue
         since = result.get("cursor", since)
-        cfg = config.load()
+        cfg = config.active()
         cfg["watch_cursor"] = since
-        config.save(cfg)
+        config.save_active(cfg)
         for m in result.get("messages", []):
             mtype = m.get("type")
             if mtype == "task" and m.get("from_agent") != agent_id:
