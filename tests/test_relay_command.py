@@ -82,6 +82,26 @@ def test_relay_carries_type_and_ref(monkeypatch):
     assert calls["ref"] == "m_task1"
 
 
+def test_relay_result_without_ref_errors(monkeypatch):
+    """Un 'result' sin --ref falla claro (el bus lo exige) ANTES de pegarle a la red."""
+    _creds(monkeypatch)
+    sent = []
+    monkeypatch.setattr(client, "send", lambda *a, **k: sent.append(1))
+    try:
+        cli.cmd_relay(_args(type="result", body="done", ref=None))
+        assert False, "debió salir"
+    except SystemExit as e:
+        assert e.code == 1
+    assert sent == []          # ni siquiera intentó enviar
+
+
+def test_relay_result_with_ref_ok(monkeypatch):
+    _creds(monkeypatch)
+    calls = _record_send(monkeypatch)
+    cli.cmd_relay(_args(type="result", body="done", ref="m_task1"))
+    assert calls["msg_type"] == "result" and calls["ref"] == "m_task1"
+
+
 def test_relay_no_config_errors_clean(monkeypatch):
     """Sin api_key (ni env) -> SystemExit con guía 'sorryhumans connect', no traceback."""
     monkeypatch.setattr(config, "active", lambda: {})
