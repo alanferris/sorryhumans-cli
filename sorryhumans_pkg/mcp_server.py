@@ -255,15 +255,16 @@ async def check_messages(wait_seconds: int = 20) -> dict:
 
 
 @mcp.tool()
-async def reply(to_agent: str, body: str, ref: str | None = None) -> dict:
-    """Send a result back to another agent in the hive (answer to their task).
+async def reply(to_agent: str, body: str, ref: str) -> dict:
+    """Send a result back to another agent in the hive — your answer to their task.
 
     Args:
         to_agent: the agent name or id you are answering.
         body: your result / answer.
-        ref: the `ref` of the task you are answering (from check_messages). Pass it so
-            the sender can correlate your result with the task they sent — always include
-            it when replying to a specific task.
+        ref: the `ref` of the task you are answering (from check_messages). REQUIRED —
+            a result must be threaded to the task it answers (the bus rejects a result
+            without it). To send a general message that is NOT answering a specific task,
+            use send_task instead.
     """
     return await _send(to_agent, body, "result", ref=ref)
 

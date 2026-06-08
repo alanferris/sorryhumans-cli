@@ -128,6 +128,14 @@ def cmd_relay(args):
     agent_id = config.require_active("agent_id")
     base     = _base_url()
 
+    mtype = args.type if hasattr(args, "type") and args.type else "chat"
+    ref = getattr(args, "ref", None)
+    # Un 'result' debe ir threaded a su task (el bus lo rechaza sin ref). Avisamos
+    # claro en vez de dejar que el bus devuelva un 400 seco.
+    if mtype == "result" and not ref:
+        print("  A 'result' needs --ref <task message_id> (it threads to the task it answers).")
+        sys.exit(1)
+
     to = args.to if hasattr(args, "to") and args.to else None
     # Resolvé nombre→id como hace el MCP _send, así --to acepta un nombre amistoso
     # ('agent@maquina') y no solo el id crudo.
@@ -144,9 +152,9 @@ def cmd_relay(args):
         base, api_key,
         from_agent=agent_id,
         to_agent=target,
-        msg_type=args.type if hasattr(args, "type") and args.type else "chat",
+        msg_type=mtype,
         body=args.body,
-        ref=getattr(args, "ref", None),
+        ref=ref,
     )
     # Confirmá el envío: sin esto el dev no sabe si el mensaje salió.
     print(f"  Sent to {to if to else 'your team'}.")
