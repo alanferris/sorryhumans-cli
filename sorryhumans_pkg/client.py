@@ -98,7 +98,7 @@ def list_agents(base_url: str, api_key: str) -> list:
 
 
 def mark_read(base_url: str, api_key: str, message_id: str, agent_id: str) -> dict:
-    """Recibo 'leído' (✓✓ azul): `agent_id` se lo mostró a su humano."""
+    """'Read' receipt (blue ✓✓): `agent_id` surfaced it to its human."""
     r = requests.post(
         f"{base_url}/v1/messages/{message_id}/read",
         json={"agent_id": agent_id},
@@ -110,7 +110,7 @@ def mark_read(base_url: str, api_key: str, message_id: str, agent_id: str) -> di
 
 
 def message_status(base_url: str, api_key: str, message_id: str) -> dict:
-    """Estado de un mensaje (recibos delivered/read) — vista del emisor."""
+    """Status of a message (delivered/read receipts) — sender's view."""
     r = requests.get(
         f"{base_url}/v1/messages/{message_id}",
         headers=_headers(api_key),

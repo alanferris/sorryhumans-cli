@@ -98,9 +98,9 @@ echo "  Connector installed."
 # is 'sorryhumans' (bin/, POSIX) or 'sorryhumans.exe' (Scripts/, Windows).
 mkdir -p "$HOME/.local/bin"
 if   [ -n "$VBIN" ] && [ -f "$VBIN/sorryhumans.exe" ]; then
-  # Windows: usar el .exe directamente. NO creamos un symlink sin extensión en
-  # .local/bin — Windows no sabe ejecutar un archivo sin .exe y, cuando Claude Code
-  # corre algo que lo invoca, dispara el diálogo "¿con qué app abrir esto?".
+  # Windows: use the .exe directly. We do NOT create an extensionless symlink in
+  # .local/bin — Windows can't run a file without .exe and, when Claude Code
+  # runs something that invokes it, it pops the "which app should open this?" dialog.
   RUN="$VBIN/sorryhumans.exe"
 elif [ -n "$VBIN" ] && [ -x "$VBIN/sorryhumans" ]; then
   ln -sf "$VBIN/sorryhumans" "$HOME/.local/bin/sorryhumans" 2>/dev/null || true

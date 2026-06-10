@@ -1,6 +1,6 @@
-"""_wire_session_hook debe CORREGIR un hook hook-context existente si su comando difiere
-(p. ej. una instalación vieja en Windows con la ruta sin .exe), no solo saltarlo. Antes
-se saltaba siempre que existiera, así que un re-connect no reparaba instalaciones viejas.
+"""_wire_session_hook must FIX an existing hook-context hook if its command differs
+(e.g. an old Windows install with the path lacking .exe), not just skip it. Before,
+it skipped whenever one existed, so a re-connect didn't repair old installs.
 """
 import json
 import os
@@ -41,7 +41,7 @@ def test_corrects_stale_hook_command(tmp_path, monkeypatch):
         cli._wire_session_hook()
     cmds = [h["command"] for e in _hooks(_read(str(tmp_path))) for h in e["hooks"]]
     assert NEWCMD in cmds
-    assert "sorryhumans hook-context" not in cmds   # el viejo fue corregido, no duplicado
+    assert "sorryhumans hook-context" not in cmds   # the old one was fixed, not duplicated
 
 
 def test_installs_when_absent(tmp_path, monkeypatch):

@@ -48,22 +48,22 @@ def cmd_summon(args):
 
 
 def _monitor_line(msg, names=None):
-    """Línea del Monitor (listen --follow): tipo + remitente + body COMPLETO. El hive NO
-    debe cortar mensajes entre agentes, así que NO se trunca. Se colapsan los saltos de
-    línea a espacios para que cada mensaje quede como un solo evento legible del Monitor.
-    Si `names` (mapa agent_id→nombre) trae al remitente, se muestra su nombre legible
-    (p. ej. 'agent@maquina') en vez del id crudo ('a_4b4b25fcbd2d')."""
+    """Monitor line (listen --follow): type + sender + the FULL body. The hive must NOT
+    truncate messages between agents, so it is NOT cut. Newlines are collapsed to
+    spaces so each message stays a single readable Monitor event.
+    If `names` (agent_id->name map) carries the sender, its readable name is shown
+    (e.g. 'agent@machine') instead of the raw id ('a_4b4b25fcbd2d')."""
     body = " ".join((msg.get("body") or "").split())
     sender = msg.get("from_agent")
     if names:
-        # `or sender`: si el agente no tiene nombre (mapeo a None) caemos al id, nunca 'None'.
+        # `or sender`: if the agent has no name (maps to None) fall back to the id, never 'None'.
         sender = names.get(sender) or sender
     return f"📬 hive: {msg.get('type')} from {sender} — {body}"
 
 
 def _auth_failed(exc) -> bool:
-    """True si la excepción es un rechazo de autenticación del bus (key revocada/ inválida).
-    listen_once hace raise_for_status, así que un 401/403 llega como HTTPError con .response."""
+    """True if the exception is an auth rejection from the bus (revoked/invalid key).
+    listen_once calls raise_for_status, so a 401/403 arrives as an HTTPError with .response."""
     status = getattr(getattr(exc, "response", None), "status_code", None)
     return status in (401, 403)
 
@@ -80,15 +80,15 @@ def cmd_listen(args):
     agent_id = config.require_active("agent_id")
     base     = _base_url()
     since    = config.get_active("listen_cursor") or "0"
-    names    = {}  # agent_id -> nombre legible, refrescado cuando aparece un remitente nuevo
+    names    = {}  # agent_id -> readable name, refreshed when a new sender appears
 
     while True:
         try:
             result = client.listen_once(base, api_key, agent_id, since)
         except Exception as e:
-            # Una key revocada/inválida (401/403) deja la espina sorda: no gires en
-            # silencio para siempre. Emití UN evento claro (despierta al agente para que
-            # avise al humano) y salí con código ≠ 0 para que el Monitor reporte el fin.
+            # A revoked/invalid key (401/403) leaves the spine deaf: don't spin in
+            # silence forever. Emit ONE clear event (wake the agent so it can warn
+            # the human) and exit non-zero so the Monitor reports the end.
             if _auth_failed(e):
                 print("📵 hive: connection rejected — your key may have been revoked. "
                       "Reconnect with: sorryhumans connect", flush=True)
@@ -103,8 +103,8 @@ def cmd_listen(args):
             cfg = config.active()
             cfg["listen_cursor"] = since
             config.save_active(cfg)
-            # Resolvé nombres legibles solo si aparece un remitente desconocido (1 llamada
-            # por batch como mucho, no por mensaje).
+            # Resolve readable names only if an unknown sender appears (1 call per
+            # batch at most, not per message).
             if follow and any(m.get("from_agent") not in names
                               and m.get("from_agent") != agent_id for m in messages):
                 try:
@@ -114,7 +114,7 @@ def cmd_listen(args):
                     pass
             for msg in messages:
                 if msg.get("from_agent") == agent_id:
-                    continue  # no te despiertes con tus propios mensajes
+                    continue  # don't wake on your own messages
                 if follow:
                     print(_monitor_line(msg, names), flush=True)
                 else:
@@ -130,15 +130,15 @@ def cmd_relay(args):
 
     mtype = args.type if hasattr(args, "type") and args.type else "chat"
     ref = getattr(args, "ref", None)
-    # Un 'result' debe ir threaded a su task (el bus lo rechaza sin ref). Avisamos
-    # claro en vez de dejar que el bus devuelva un 400 seco.
+    # A 'result' must be threaded to its task (the bus rejects it without ref). Warn
+    # clearly instead of letting the bus return a bare 400.
     if mtype == "result" and not ref:
         print("  A 'result' needs --ref <task message_id> (it threads to the task it answers).")
         sys.exit(1)
 
     to = args.to if hasattr(args, "to") and args.to else None
-    # Resolvé nombre→id como hace el MCP _send, así --to acepta un nombre amistoso
-    # ('agent@maquina') y no solo el id crudo.
+    # Resolve name->id like the MCP _send does, so --to accepts a friendly name
+    # ('agent@machine') and not just the raw id.
     target = to
     if to:
         try:
@@ -156,7 +156,7 @@ def cmd_relay(args):
         body=args.body,
         ref=ref,
     )
-    # Confirmá el envío: sin esto el dev no sabe si el mensaje salió.
+    # Confirm the send: without this the dev doesn't know if the message went out.
     print(f"  Sent to {to if to else 'your team'}.")
 
 
@@ -172,10 +172,10 @@ def cmd_hive(args):
 
 
 def _force_utf8_output():
-    """En Windows la consola por defecto es cp1252 y no puede codificar emojis (p. ej. el
-    📬 de 'listen --follow'), lo que mata el Monitor con UnicodeEncodeError —y el Monitor
-    es la columna del producto. Forzamos UTF-8 con errores tolerantes para que la salida
-    nunca tumbe el proceso (degrada con '?' si la terminal no soporta el glifo)."""
+    """On Windows the default console is cp1252 and cannot encode emojis (e.g. the
+    inbox glyph of 'listen --follow'), which kills the Monitor with UnicodeEncodeError
+    -- and the Monitor is the spine of the product. We force UTF-8 with tolerant errors
+    so output never takes down the process (degrades to '?' if the glyph is unsupported)."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
@@ -184,10 +184,10 @@ def _force_utf8_output():
 
 
 def main():
-    # UTF-8 tolerante para la salida de consola (evita que el emoji del Monitor mate el
-    # proceso en cp1252). PERO NO para el MCP server: habla JSON-RPC por stdio y
-    # reconfigurar stdout rompe el transporte → el cliente queda en timeout (30s) y el
-    # MCP figura "not connected". El server mcp no necesita esto: no imprime a consola.
+    # Tolerant UTF-8 for console output (keeps the Monitor's emoji from killing the
+    # process on cp1252). BUT NOT for the MCP server: it speaks JSON-RPC over stdio and
+    # reconfiguring stdout breaks the transport -> the client times out (30s) and the
+    # MCP shows "not connected". The mcp server does not need this: it never prints to console.
     if sys.argv[1:2] != ["mcp"]:
         _force_utf8_output()
     parser = argparse.ArgumentParser(
@@ -238,7 +238,7 @@ def main():
     p_watch.add_argument("--auto", action="store_true", help="Auto-handle tasks with the local agent (claude headless), governed by local permissions")
     p_watch.set_defaults(func=cmd_watch)
 
-    # Salida para el hook SessionStart de Claude Code (uso interno).
+    # Output for Claude Code's SessionStart hook (internal use).
     p_hook = sub.add_parser("hook-context", add_help=False)
     p_hook.set_defaults(func=cmd_hook_context)
 
@@ -261,8 +261,8 @@ def main():
     p_setaut.add_argument("skip", nargs="?", default="1")
     p_setaut.set_defaults(func=cmd_set_autonomy)
 
-    # Comando mal tecleado: en vez del 'invalid choice' seco de argparse, sugerir el
-    # más parecido y ofrecer la lista de comandos como menú seleccionable.
+    # Mistyped command: instead of argparse's bare 'invalid choice', suggest the
+    # closest one and offer the command list as a selectable menu.
     argv = sys.argv[1:]
     if "-h" not in argv and "--help" not in argv:
         first = next((a for a in argv if not a.startswith("-")), None)
@@ -279,16 +279,16 @@ def main():
     try:
         args.func(args)
     except KeyboardInterrupt:
-        # Ctrl+C fuera de un prompt (p. ej. durante una llamada de red): salir limpio.
+        # Ctrl+C outside a prompt (e.g. during a network call): exit cleanly.
         sys.stderr.write("\n")
         sys.exit(130)
 
 
 def _suggest_command(sub, typed):
-    """Comando desconocido: muestra el más parecido + la lista de comandos de usuario
-    como menú seleccionable. Devuelve el comando elegido, o None si se cancela."""
+    """Unknown command: show the closest match + the list of user commands as a
+    selectable menu. Returns the chosen command, or None if cancelled."""
     import difflib
-    cmds = [(a.dest, a.help or "") for a in sub._get_subactions()]  # solo los con help (de usuario)
+    cmds = [(a.dest, a.help or "") for a in sub._get_subactions()]  # only those with help (user-facing)
     names = [c for c, _ in cmds]
     near = difflib.get_close_matches(typed, names, n=1, cutoff=0.5)
     if near:
@@ -305,25 +305,25 @@ def _suggest_command(sub, typed):
     if not sel:
         return None
     try:
-        return cmds[int(sel) - 1][0]          # eligió por número
+        return cmds[int(sel) - 1][0]          # chose by number
     except (ValueError, IndexError):
-        return sel if sel in names else None   # o tecleó el nombre del comando
+        return sel if sel in names else None   # or typed the command name
 
 
 def cmd_start(args):
-    """Un solo comando: conecta esta máquina al hive y deja Claude Code listo.
+    """One command: connect this machine to the hive and get Claude Code ready.
 
-    Hace todo lo que antes era manual:
-      1. summon — registra el agente en el hive.
-      2. cablea el MCP de Sorry, humans en Claude Code (claude mcp add).
-    Después de esto, tu Claude ve las tools del hive y puede mandar/recibir.
+    Does everything that used to be manual:
+      1. summon -- register the agent in the hive.
+      2. wire the Sorry, humans MCP into Claude Code (claude mcp add).
+    After this, your Claude sees the hive tools and can send/receive.
     """
     import os
     import shutil
     import socket
     import subprocess
 
-    # key: del argumento, o de la config/env si ya hiciste start antes.
+    # key: from the argument, or from config/env if you ran start before.
     key = getattr(args, "key", None) or config.get("api_key") or os.environ.get("SORRYHUMANS_KEY")
     if not key:
         print("Usage: sorryhumans start <your-team-key>")
@@ -343,25 +343,25 @@ def cmd_start(args):
     config.save(cfg)
     print(f"  {name} is awake in the hive.")
 
-    # 2. cablear el MCP en Claude Code
+    # 2. wire the MCP into Claude Code
     _wire_mcp(key, name, cfg.get("role") or "agent", base)
     print("\n  Done. This machine is connected.")
 
 
 def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> None:
-    """Registra el MCP de Sorry, humans en Claude Code (idempotente)."""
+    """Register the Sorry, humans MCP in Claude Code (idempotent)."""
     import shutil
     import subprocess
 
     if not shutil.which("claude"):
         print("  Claude Code not found on PATH. Install it, then run 'sorryhumans connect' again.")
         return
-    # quita uno previo para no duplicar, luego agrega
+    # remove a previous one to avoid duplicates, then add
     subprocess.run(["claude", "mcp", "remove", "sorry-humans", "--scope", "user"],
                    capture_output=True)
-    # Usar el propio comando 'sorryhumans mcp' (en PATH si instalaron el paquete)
-    # en vez de adivinar qué python tiene el módulo. Si no está en PATH, caer al
-    # python actual con -m.
+    # Use the 'sorryhumans mcp' command itself (on PATH if the package was installed)
+    # instead of guessing which python has the module. If not on PATH, fall back to
+    # the current python with -m.
     sh_bin = shutil.which("sorryhumans")
     mcp_cmd = [sh_bin, "mcp"] if sh_bin else [sys.executable or "python3", "-m", "sorryhumans_pkg.cli", "mcp"]
     add = subprocess.run(
@@ -380,12 +380,12 @@ def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> Non
 
 
 def cmd_connect(args):
-    """Login por navegador (device flow) — sin pegar API keys en el chat.
+    """Browser login (device flow) -- no API keys pasted in the chat.
 
-    Pide un código al bus, abre el navegador para que inicies sesión con Google
-    y elijas/creas un proyecto, espera la aprobación, y al aprobar recibe la
-    api_key (máquina↔backend, nunca por el chat), la guarda, cablea el MCP y
-    registra este agente con su rol.
+    Asks the bus for a code, opens the browser so you sign in with Google
+    and pick/create a project, waits for approval, and on approval receives the
+    api_key (machine<->backend, never via chat), saves it, wires the MCP and
+    registers this agent with its role.
     """
     import socket
     import time
@@ -394,13 +394,13 @@ def cmd_connect(args):
     role = (args.role or "agent").lower()
     if role not in ("leader", "agent"):
         role = "agent"
-    # El nombre identifica al AGENTE (la IA), no al humano: rol@maquina. Asi la
-    # hive nunca confunde al operador humano con su agente.
+    # The name identifies the AGENT (the AI), not the human: role@machine. That way
+    # the hive never confuses the human operator with their agent.
     name = args.name or f"{role}@{socket.gethostname()}"
     base = _base_url()
 
-    # Reintenta ante hipos transitorios de red/DNS (p.ej. "Temporary failure in
-    # name resolution") en vez de abortar al primer error.
+    # Retry on transient network/DNS hiccups (e.g. "Temporary failure in
+    # name resolution") instead of aborting on the first error.
     dc = None
     for attempt in range(5):
         try:
@@ -418,8 +418,8 @@ def cmd_connect(args):
     base_url = dc["verification_uri"]
     sep = "&" if "?" in base_url else "?"
     connect_url = f"{base_url}{sep}code={dc['user_code']}"
-    # Si se pasó un project id, el navegador salta el selector y ata la máquina a
-    # ese proyecto directo (el usuario debe ser miembro; el bus lo valida al aprobar).
+    # If a project id was passed, the browser skips the selector and binds the machine
+    # to that project directly (the user must be a member; the bus validates on approval).
     if getattr(args, "project", None):
         connect_url += f"&p={args.project}"
     print(f"\n  To connect this machine ({name}) as {role}, open this link")
@@ -441,7 +441,7 @@ def cmd_connect(args):
         if status == 410:
             print("  Code expired. Run 'sorryhumans connect' again.")
             sys.exit(1)
-        # 428 pending -> seguir esperando
+        # 428 pending -> keep waiting
 
     key = data["api_key"]
     final_role = data.get("role", role)
@@ -452,7 +452,7 @@ def cmd_connect(args):
                 "agent_name": name, "role": final_role, "base_url": base,
                 "project_name": project, "member_uid": data.get("member_uid")})
     config.save(cfg)
-    # Guardar también por-proyecto, para pertenecer a varios proyectos a la vez.
+    # Also save per-project, to belong to several projects at once.
     if cfg.get("team_id"):
         config.save_project(cfg["team_id"], cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
@@ -462,18 +462,18 @@ def cmd_connect(args):
 
 
 def _hook_command() -> str:
-    """Comando del hook SessionStart: ruta COMPLETA al ejecutable real del venv —
-    Scripts/sorryhumans.exe en Windows, bin/sorryhumans en POSIX. Si caemos a
-    'sorryhumans' a secas en Windows, éste resuelve a un binario SIN extensión y Claude
-    Code dispara el diálogo "¿con qué app abrir esto?"; la ruta completa al .exe lo evita.
+    """SessionStart hook command: the FULL path to the venv's real executable --
+    Scripts/sorryhumans.exe on Windows, bin/sorryhumans on POSIX. If we fall back to
+    bare 'sorryhumans' on Windows, it resolves to a binary WITHOUT extension and Claude
+    Code pops the "which app should open this?" dialog; the full path to the .exe avoids it.
 
-    Formato a prueba de shells: FORWARD SLASHES y SIN comillas. Claude Code en Windows
-    ejecuta el hook con distintos shells según la máquina (PowerShell o /usr/bin/bash de
-    Git Bash) y no lo controlamos:
-      - comillas → PowerShell parsea `"ruta" arg` como string + token inesperado (rompe).
-      - backslashes → bash los trata como escape (C:\\Users → C:Users) y no encuentra el .exe.
-    Una ruta con '/' y sin comillas se ejecuta bien en bash, PowerShell y cmd. (Limitación
-    conocida: un path con espacios rompería; los dirs de instalación no los tienen.)"""
+    Shell-proof format: FORWARD SLASHES and NO quotes. Claude Code on Windows runs the
+    hook with different shells depending on the machine (PowerShell or Git Bash's
+    /usr/bin/bash) and we do not control which:
+      - quotes -> PowerShell parses `"path" arg` as string + unexpected token (breaks).
+      - backslashes -> bash treats them as escapes (C:\\Users -> C:Users) and misses the .exe.
+    A path with '/' and no quotes runs fine in bash, PowerShell and cmd. (Known
+    limitation: a path with spaces would break; install dirs do not have them.)"""
     import os
     venv = os.path.expanduser("~/.sorryhumans/venv")
     for c in (os.path.join(venv, "Scripts", "sorryhumans.exe"),  # Windows
@@ -484,10 +484,10 @@ def _hook_command() -> str:
 
 
 def _wire_session_hook() -> None:
-    """Instala un hook SessionStart en ~/.claude/settings.json que, al arrancar cada
-    sesión de Claude Code, inyecta como directiva fuerte (additionalContext): armar el
-    Monitor PRIMERO + el brief del proyecto (contexto global + instrucciones del miembro).
-    El campo `instructions` del MCP es un canal débil; el hook es el más fuerte."""
+    """Install a SessionStart hook in ~/.claude/settings.json that, at the start of
+    each Claude Code session, injects as a strong directive (additionalContext): arm the
+    Monitor FIRST + the project brief (global context + the member's instructions).
+    The MCP's `instructions` field is a weak channel; the hook is the stronger one."""
     import os
     import json as _json
     sp = os.path.expanduser("~/.claude/settings.json")
@@ -504,10 +504,10 @@ def _wire_session_hook() -> None:
     ss = hooks.setdefault("SessionStart", [])
     if not isinstance(ss, list):
         ss = hooks["SessionStart"] = []
-    # Si ya hay un hook hook-context, CORREGIR su comando si difiere (p. ej. una
-    # instalación vieja en Windows con la ruta sin .exe que disparaba el diálogo "abrir
-    # con…"). Solo saltar si no hay que escribir nada. Antes esto se saltaba siempre que
-    # existiera, así que un re-connect nunca reparaba instalaciones viejas.
+    # If a hook-context hook already exists, FIX its command if it differs (e.g. an
+    # old Windows install with the path lacking .exe that triggered the "open with..."
+    # dialog). Only skip if nothing needs writing. Before, this skipped whenever one
+    # existed, so a re-connect never repaired old installs.
     found = False
     changed = False
     for e in ss:
@@ -536,19 +536,19 @@ def _wire_session_hook() -> None:
 
 
 def cmd_hook_context(args):
-    """Salida para el hook SessionStart de Claude Code: directiva fuerte que ordena
-    armar el Monitor primero y trae el brief del proyecto. SIEMPRE imprime JSON válido
-    (best-effort: si el bus falla, igual emite el mandato del Monitor)."""
+    """Output for Claude Code's SessionStart hook: a strong directive ordering it to
+    arm the Monitor first and fetch the project brief. ALWAYS prints valid JSON
+    (best-effort: if the bus fails, it still emits the Monitor mandate)."""
     import json as _json
     import urllib.request
-    # El hook corre al arrancar CUALQUIER sesión de Claude Code (settings global).
-    # Solo debe inyectar si ESTA sesión está atada explícitamente a un proyecto
-    # (env SORRYHUMANS_PROJECT o marker .sorryhumans en cwd/padres). Sin binding NO
-    # es una terminal del hive: emitimos additionalContext vacío y la dejamos limpia.
+    # The hook runs at the start of ANY Claude Code session (global settings).
+    # It should only inject if THIS session is explicitly bound to a project
+    # (env SORRYHUMANS_PROJECT or a .sorryhumans marker in cwd/parents). Without a binding
+    # it is NOT a hive terminal: we emit empty additionalContext and leave it clean.
     if not config.active_project_id():
         print(_json.dumps({}))
         return
-    cfg = config.active()   # proyecto activo: env > .sorryhumans (binding ya garantizado)
+    cfg = config.active()   # active project: env > .sorryhumans (binding already guaranteed)
     key = cfg.get("api_key", "")
     team = cfg.get("team_id", "")
     uid = cfg.get("member_uid", "")
@@ -583,8 +583,8 @@ def cmd_hook_context(args):
 
 
 def cmd_use(args):
-    """Ata el directorio actual a un proyecto (escribe un marcador .sorryhumans).
-    Abrir Claude Code en esta carpeta usará el contexto de ese proyecto."""
+    """Bind the current directory to a project (writes a .sorryhumans marker).
+    Opening Claude Code in this folder will use that project's context."""
     import os
     pid = args.project
     if pid and not config.load_project(pid):
@@ -597,8 +597,8 @@ def cmd_use(args):
 
 
 def cmd_disconnect(args):
-    """Sale de un proyecto en ESTA máquina (borra las credenciales locales).
-    No revoca tu membresía en el proyecto — solo desconecta esta máquina."""
+    """Leave a project on THIS machine (deletes the local credentials).
+    Does not revoke your project membership -- it only disconnects this machine."""
     pid = args.project or config.active_project_id()
     if not pid:
         print("Usage: sorryhumans disconnect <project_id>")
@@ -612,7 +612,7 @@ def cmd_disconnect(args):
             pass
     d = config.load()
     if d.get("team_id") == pid:
-        config.save({})   # era el default; lo limpiamos para que no quede colgado
+        config.save({})   # it was the default; clear it so nothing stays dangling
     if removed:
         print(f"  Disconnected from {pid} on this machine.")
     else:
@@ -625,16 +625,16 @@ def _ask(prompt, default=""):
         v = input(prompt)
         return v.strip() or default
     except KeyboardInterrupt:
-        # Ctrl+C en un prompt: salir limpio, sin traceback.
+        # Ctrl+C in a prompt: exit cleanly, no traceback.
         sys.stderr.write("\n")
         raise SystemExit(130)
     except Exception:
-        # EOF (no interactivo, p. ej. 'curl | sh') u otros: usar el default.
+        # EOF (non-interactive, e.g. 'curl | sh') or others: use the default.
         return default
 
 
 def _ask_autonomy(default_skip=True):
-    """Pregunta cómo corre el agente (1=colabora libre / 2=control total). → skip(bool)."""
+    """Ask how the agent should run (1=collaborate freely / 2=full control). -> skip(bool)."""
     print("\nHow should your agent run in the hive?")
     print("  1) Let it collaborate freely — recommended (acts on hive tasks without asking you to approve every command)")
     print("  2) Keep full control (you approve every command; not recommended)")
@@ -643,8 +643,8 @@ def _ask_autonomy(default_skip=True):
 
 
 def _launch_claude(project_id=None, resume=False, skip=True):
-    """Reemplaza este proceso por Claude Code, atado al proyecto (env) y con el modo
-    de permisos elegido. Si no hay claude, lo dice."""
+    """Replace this process with Claude Code, bound to the project (env) and with the
+    chosen permission mode. If there is no claude, it says so."""
     import os
     env = dict(os.environ)
     if project_id:
@@ -663,8 +663,8 @@ def _launch_claude(project_id=None, resume=False, skip=True):
 
 
 def cmd_projects(args):
-    """Lista los proyectos conectados en esta máquina (por nombre), elige uno,
-    pregunta autonomía y abre Claude Code ahí."""
+    """List the projects connected on this machine (by name), pick one,
+    ask autonomy and open Claude Code there."""
     projs = config.list_local()
     if not projs:
         print("\n  No projects connected on this machine yet.")
@@ -687,8 +687,8 @@ def cmd_projects(args):
 
 
 def cmd_resume(args):
-    """Reabre la última sesión de Claude (claude --resume) en el proyecto activo,
-    manteniendo el modo de permisos con el que quedó ese proyecto."""
+    """Reopen the last Claude session (claude --resume) in the active project,
+    keeping the permission mode that project was left with."""
     pid = config.active_project_id()
     if not pid:
         locals_ = config.list_local()
@@ -711,15 +711,15 @@ def cmd_resume(args):
 
 
 def cmd_set_autonomy(args):
-    """Uso interno (lo llama install.sh): recuerda el modo de permisos del proyecto."""
+    """Internal use (called by install.sh): remembers the project's permission mode."""
     skip = str(args.skip).lower() not in ("0", "false", "no")
     config.set_autonomy(args.project or "", skip)
 
 
 def cmd_mcp(args):
     import os
-    # Proyecto ACTIVO de esta sesión: env SORRYHUMANS_PROJECT > archivo .sorryhumans >
-    # default. Así una misma máquina sirve varios proyectos (uno por ventana/carpeta).
+    # ACTIVE project for this session: env SORRYHUMANS_PROJECT > .sorryhumans file >
+    # default. So one machine serves several projects (one per window/folder).
     cfg = config.active()
     key = cfg.get("api_key") or os.environ.get("SORRYHUMANS_KEY")
     if not key:
@@ -731,7 +731,7 @@ def cmd_mcp(args):
     os.environ.setdefault("SORRYHUMANS_BUS", base)
     os.environ.setdefault("SORRYHUMANS_AGENT_NAME", name)
     os.environ.setdefault("SORRYHUMANS_ROLE", role)
-    # Identidad de proyecto + miembro para servir el brief del proyecto al agente.
+    # Project + member identity to serve the project brief to the agent.
     if cfg.get("team_id"):
         os.environ.setdefault("SORRYHUMANS_TEAM_ID", cfg["team_id"])
     if cfg.get("member_uid"):
@@ -799,7 +799,7 @@ def cmd_watch(args):
     name = config.get_active("agent_name") or "agent"
     auto = getattr(args, "auto", False)
     since = config.get_active("watch_cursor") or "0"
-    pending = {}  # task_id -> (sender, body): tasks sensibles esperando aprobación humana (--auto)
+    pending = {}  # task_id -> (sender, body): sensitive tasks awaiting human approval (--auto)
     print(f"{name} is watching the hive (auto={'on' if auto else 'off'}). Ctrl-C to stop.")
     while True:
         try:

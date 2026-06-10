@@ -1,10 +1,10 @@
-"""Tests del threading de results en el MCP (`reply` con `ref`).
+"""Tests for result threading in the MCP (`reply` with `ref`).
 
-Gap que cubre (G2, regresión): la tool `reply` mandaba el result SIN `ref`, así que el
-agente que envió el `task` no podía correlacionar la respuesta. Ahora `_send` propaga
-`ref` al payload del bus (igual que el campo que devuelve check_messages).
+Gap covered (G2, regression): the `reply` tool sent the result WITHOUT `ref`, so the
+agent that sent the `task` couldn't correlate the answer. Now `_send` propagates
+`ref` to the bus payload (same as the field check_messages returns).
 
-Offline: se mockea httpx.AsyncClient; cero red. Se valida el payload exacto que sale.
+Offline: httpx.AsyncClient is mocked; zero network. The exact outgoing payload is checked.
 """
 import asyncio
 import os
@@ -26,7 +26,7 @@ class _FakeResp:
 
 
 class _FakeClient:
-    """Captura el último POST en _FakeClient.last_post."""
+    """Captures the last POST in _FakeClient.last_post."""
     last_post = None
 
     def __init__(self, *a, **k):
@@ -47,8 +47,8 @@ class _FakeClient:
 
 
 def _setup(monkeypatch):
-    monkeypatch.setattr(mcp_server, "KEY", "am_test")      # _headers exige KEY
-    mcp_server._state["agent_id"] = "a_self"               # evita el register de red
+    monkeypatch.setattr(mcp_server, "KEY", "am_test")      # _headers requires KEY
+    mcp_server._state["agent_id"] = "a_self"               # avoids the network register
     monkeypatch.setattr(mcp_server.httpx, "AsyncClient", _FakeClient)
     _FakeClient.last_post = None
 
@@ -57,16 +57,16 @@ def test_result_includes_ref_and_resolves_name(monkeypatch):
     _setup(monkeypatch)
     asyncio.run(mcp_server._send("agent@box", "result body", "result", ref="m_task1"))
     p = _FakeClient.last_post
-    assert p["ref"] == "m_task1"          # enlaza el result con el task original
-    assert p["to_agent"] == "a_box"       # resolvió nombre→id
+    assert p["ref"] == "m_task1"          # threads the result to the original task
+    assert p["to_agent"] == "a_box"       # resolved name->id
     assert p["type"] == "result"
     assert p["body"] == "result body"
 
 
 def test_send_without_ref_omits_key(monkeypatch):
-    """Sin ref (p. ej. un chat/broadcast) NO se mete la clave 'ref' en el payload."""
+    """Without ref (e.g. a chat/broadcast) the 'ref' key is NOT put in the payload."""
     _setup(monkeypatch)
-    asyncio.run(mcp_server._send(None, "hola equipo", "task"))
+    asyncio.run(mcp_server._send(None, "hi team", "task"))
     p = _FakeClient.last_post
     assert "ref" not in p
     assert p["to_agent"] is None          # broadcast (everyone)

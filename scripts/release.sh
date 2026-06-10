@@ -18,5 +18,5 @@ gcloud storage cp install.sh "$BUCKET/install.sh"
 gcloud storage cp install.ps1 "$BUCKET/install.ps1"
 gcloud storage cp .claude/skills/sorryhumans/SKILL.md "$BUCKET/SKILL.md"
 
-echo "Done. Al subir versión, bump WHEEL= en install.sh Y \$Wheel en install.ps1"
+echo "Done. When bumping the version, bump WHEEL= in install.sh AND \$Wheel in install.ps1"
 echo "(y re-deploy del frontend: hornea public/install.sh y public/install.ps1)."

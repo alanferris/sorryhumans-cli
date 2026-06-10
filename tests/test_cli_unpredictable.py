@@ -1,9 +1,9 @@
-"""Comportamiento impredecible de un dev: inputs raros, config corrupta, args basura.
+"""Unpredictable developer behavior: weird inputs, corrupt config, junk args.
 
-Objetivo del lanzamiento: ningún uso razonable (o no tan razonable) debe tirar un
-traceback. Todo debe degradar limpio o guiar al usuario.
+Launch goal: no reasonable (or not-so-reasonable) use should throw a
+traceback. Everything must degrade cleanly or guide the user.
 
-Offline: nada de red. Los tests que tocan disco aíslan en tmp_path.
+Offline: no network. Tests that touch disk isolate in tmp_path.
 """
 import os
 import sys
@@ -18,7 +18,7 @@ from sorryhumans_pkg import cli, config
 def test_corrupt_config_json_degrades_to_empty(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "CONFIG_PATH", tmp_path / "config.json")
     (tmp_path / "config.json").write_text("{ this is not json ]")
-    assert config.load() == {}            # no revienta, degrada a {}
+    assert config.load() == {}            # doesn't blow up, degrades to {}
 
 
 def test_corrupt_project_json_degrades_to_empty(monkeypatch, tmp_path):
@@ -29,7 +29,7 @@ def test_corrupt_project_json_degrades_to_empty(monkeypatch, tmp_path):
 
 
 def test_empty_marker_file_is_ignored(monkeypatch, tmp_path):
-    """Un .sorryhumans vacío no debe seleccionar un proyecto fantasma."""
+    """An empty .sorryhumans must not select a phantom project."""
     monkeypatch.delenv("SORRYHUMANS_PROJECT", raising=False)
     work = tmp_path / "work"
     work.mkdir()
@@ -44,15 +44,15 @@ def test_no_args_prints_help_and_exits(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["sorryhumans"])
     try:
         cli.main()
-        assert False, "debió salir"
+        assert False, "should have exited"
     except SystemExit as e:
         assert e.code == 1
     out = capsys.readouterr().out
-    assert "summon" in out                # imprimió la ayuda con los comandos
+    assert "summon" in out                # printed the help with the commands
 
 
 def test_unknown_command_non_interactive_exits_clean(monkeypatch, capsys):
-    """Subcomando inexistente + cancelar el menú -> exit 1, sin traceback."""
+    """Nonexistent subcommand + cancel the menu -> exit 1, no traceback."""
     monkeypatch.setattr(sys, "argv", ["sorryhumans", "zzzz"])
     monkeypatch.setattr(cli, "_ask", lambda *a, **k: "")   # Enter = cancelar
     try:
@@ -63,7 +63,7 @@ def test_unknown_command_non_interactive_exits_clean(monkeypatch, capsys):
 
 
 def test_relay_bad_type_rejected_by_argparse(monkeypatch):
-    """--type fuera de choices -> argparse sale 2 ANTES de ejecutar nada (sin red)."""
+    """--type outside choices -> argparse exits 2 BEFORE running anything (no network)."""
     monkeypatch.setattr(sys, "argv", ["sorryhumans", "relay", "hi", "--type", "bogus"])
     try:
         cli.main()

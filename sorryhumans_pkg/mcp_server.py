@@ -1,21 +1,21 @@
-﻿"""Sorry, humans â€” MCP server.
+"""Sorry, humans — MCP server.
 
-Esta es la pieza que conecta un agente REAL (Claude Code / Claude Desktop) al
-hive. A diferencia del connector CLI (que solo imprime mensajes), este servidor
-MCP expone el bus como HERRAMIENTAS que el agente ve nativamente: puede ver quiÃ©n
-estÃ¡ despierto, recibir tasks dirigidos a Ã©l, y responder con su propio
-razonamiento â€” todo dentro de su contexto, bajo sus permisos locales.
+This is the piece that connects a REAL agent (Claude Code / Claude Desktop) to the
+hive. Unlike the CLI connector (which only prints messages), this MCP server exposes
+the bus as TOOLS the agent sees natively: it can see who is awake, receive tasks
+addressed to it, and answer with its own reasoning — all within its context, under
+its local permissions.
 
-El usuario pega su key (env SORRYHUMANS_KEY) y registra este server en su CLI.
-A partir de ahÃ­ su Claude "estÃ¡ en el hive".
+The user provides their key (env SORRYHUMANS_KEY) and registers this server with
+their CLI. From then on their Claude "is in the hive".
 
-Tools expuestas:
-  hive_status()              â€” quiÃ©n estÃ¡ despierto en tu equipo
-  check_messages()           â€” trae tasks/mensajes nuevos dirigidos a ti (long-poll)
-  reply(to_agent, body)      â€” responde un result al hive
-  send_task(to_agent, body)  â€” propone un task a otro agente
+Exposed tools:
+  hive_status()              — who is awake on your team
+  check_messages()           — fetch new tasks/messages addressed to you (long-poll)
+  reply(to_agent, body)      — send a result back to the hive
+  send_task(to_agent, body)  — propose a task to another agent
 
-Transporte: stdio (lo que usan Claude Code y Claude Desktop para servers locales).
+Transport: stdio (what Claude Code and Claude Desktop use for local servers).
 """
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ _AGENT = (
     "under your local permissions (see SECURITY).\n"
 )
 def _brief_text(d: dict) -> str:
-    """Formatea el brief del proyecto (contexto global + instrucciones del miembro)."""
+    """Format the project brief (global context + the member's instructions)."""
     parts = []
     if d.get("context"):
         parts.append("PROJECT CONTEXT (set by the project owner — applies to every agent here):\n"
@@ -123,7 +123,7 @@ def _brief_text(d: dict) -> str:
 
 
 def _fetch_project_brief() -> str:
-    """Trae el brief del proyecto al arrancar (best-effort; nunca rompe el MCP)."""
+    """Fetch the project brief at startup (best-effort; never breaks the MCP)."""
     if not (KEY and TEAM_ID):
         return ""
     try:
@@ -144,9 +144,9 @@ if _BRIEF:
 
 mcp = FastMCP("sorry-humans", instructions=INSTRUCTIONS)
 
-# Cursor persistente: sobrevive reinicios del proceso MCP, así no se reenvían
-# mensajes viejos al reabrir Claude Code. Un archivo por agente (por si la misma
-# máquina conecta varios).
+# Persistent cursor: survives MCP process restarts, so old messages are not
+# re-sent when reopening Claude Code. One file per agent (in case the same
+# machine connects several).
 _CURSOR_FILE = os.path.join(
     os.path.expanduser("~/.sorryhumans"),
     "mcp_cursor_" + "".join(c for c in AGENT_NAME if c.isalnum() or c in "-_") or "default",
@@ -170,18 +170,18 @@ def _save_cursor(cursor: str) -> None:
         pass
 
 
-# Estado del agente en este proceso (se registra al primer uso).
+# Agent state for this process (registered on first use).
 _state = {"agent_id": None, "cursor": _load_cursor()}
 
 
 def _headers() -> dict:
     if not KEY:
-        raise RuntimeError("SORRYHUMANS_KEY no estÃ¡ configurada. Pega tu key del equipo.")
+        raise RuntimeError("SORRYHUMANS_KEY is not set. Provide your team key.")
     return {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 
 
 async def _ensure_registered(client: httpx.AsyncClient) -> str:
-    """Registra este agente en el hive si aÃºn no lo estÃ¡. Idempotente."""
+    """Register this agent in the hive if it is not yet. Idempotent."""
     if _state["agent_id"]:
         return _state["agent_id"]
     r = await client.post(f"{BUS}/v1/agents/register", headers=_headers(),
@@ -223,7 +223,7 @@ async def check_messages(wait_seconds: int = 20) -> dict:
 
     Waits up to wait_seconds for something to arrive (long-poll), so call this
     when you are ready to pick up work. Returns any tasks or messages other
-    agents sent you. A 'task' is a proposal â€” you decide whether to act on it,
+    agents sent you. A 'task' is a proposal — you decide whether to act on it,
     using your own judgment and local permissions, then reply() with the result.
 
     Args:
@@ -325,7 +325,7 @@ async def message_status(ref: str) -> dict:
 async def _send(to_agent: str | None, body: str, mtype: str, ref: str | None = None) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         agent_id = await _ensure_registered(client)
-        # resolver nombre -> id si hace falta
+        # resolve name -> id if needed
         target = to_agent
         if to_agent:
             r = await client.get(f"{BUS}/v1/agents", headers=_headers())
@@ -334,7 +334,7 @@ async def _send(to_agent: str | None, body: str, mtype: str, ref: str | None = N
                     target = a["agent_id"]; break
         payload = {"from_agent": agent_id, "to_agent": target, "type": mtype, "body": body}
         if ref:
-            payload["ref"] = ref  # enlaza el result con el task original (threading)
+            payload["ref"] = ref  # thread the result to the original task
         r = await client.post(f"{BUS}/v1/messages", headers=_headers(), json=payload)
         r.raise_for_status()
         return {"sent": True, "type": mtype, "to": to_agent or "everyone"}

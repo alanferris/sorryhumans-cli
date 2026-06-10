@@ -1,10 +1,10 @@
-"""Tests del comando `relay` (envío de mensajes al hive).
+"""Tests for the `relay` command (sending messages to the hive).
 
-Gaps que cubre (regresión):
-  - relay imprimía NADA: el dev no sabía si el mensaje salió. Ahora confirma.
-  - `--to <nombre>` se mandaba literal sin resolver a id (a diferencia del MCP). Ahora
-    resuelve nombre→id vía list_agents.
-  - sin credenciales -> error limpio con guía, nunca traceback.
+Gaps covered (regression):
+  - relay printed NOTHING: the dev didn't know if the message went out. Now it confirms.
+  - `--to <name>` was sent literally without resolving to an id (unlike the MCP). Now
+    it resolves name->id via list_agents.
+  - no credentials -> clean error with guidance, never a traceback.
 
 Todo offline: client.send / client.list_agents y config se mockean; cero red.
 """
@@ -23,7 +23,7 @@ def _args(**kw):
 
 
 def _record_send(monkeypatch):
-    """Reemplaza client.send por un capturador; devuelve el dict con lo enviado."""
+    """Replace client.send with a capturer; returns the dict with what was sent."""
     calls = {}
 
     def fake(base, api_key, from_agent=None, to_agent=None, msg_type=None,
@@ -47,8 +47,8 @@ def test_relay_to_team_confirms_and_broadcasts(monkeypatch, capsys):
     calls = _record_send(monkeypatch)
     cli.cmd_relay(_args(body="ping"))
     out = capsys.readouterr().out
-    assert "Sent to your team." in out          # confirmación visible (antes: nada)
-    assert calls["to_agent"] is None            # sin --to => broadcast
+    assert "Sent to your team." in out          # visible confirmation (before: nothing)
+    assert calls["to_agent"] is None            # no --to => broadcast
     assert calls["body"] == "ping"
     assert calls["msg_type"] == "chat"
 
@@ -59,13 +59,13 @@ def test_relay_to_resolves_name_to_id(monkeypatch, capsys):
                         lambda base, key: [{"name": "agent@box", "agent_id": "a_box"}])
     calls = _record_send(monkeypatch)
     cli.cmd_relay(_args(to="agent@box", body="hi"))
-    assert calls["to_agent"] == "a_box"          # resolvió nombre→id
+    assert calls["to_agent"] == "a_box"          # resolved name->id
     out = capsys.readouterr().out
-    assert "Sent to agent@box." in out           # confirma con el nombre amistoso
+    assert "Sent to agent@box." in out           # confirms with the friendly name
 
 
 def test_relay_to_unknown_name_passes_through(monkeypatch, capsys):
-    """Si el nombre no está en el hive, se manda tal cual (el bus decide); no rompe."""
+    """If the name isn't in the hive, it's sent as-is (the bus decides); no crash."""
     _creds(monkeypatch)
     monkeypatch.setattr(client, "list_agents", lambda base, key: [])
     calls = _record_send(monkeypatch)
@@ -83,16 +83,16 @@ def test_relay_carries_type_and_ref(monkeypatch):
 
 
 def test_relay_result_without_ref_errors(monkeypatch):
-    """Un 'result' sin --ref falla claro (el bus lo exige) ANTES de pegarle a la red."""
+    """A 'result' without --ref fails clearly (the bus requires it) BEFORE hitting the network."""
     _creds(monkeypatch)
     sent = []
     monkeypatch.setattr(client, "send", lambda *a, **k: sent.append(1))
     try:
         cli.cmd_relay(_args(type="result", body="done", ref=None))
-        assert False, "debió salir"
+        assert False, "should have exited"
     except SystemExit as e:
         assert e.code == 1
-    assert sent == []          # ni siquiera intentó enviar
+    assert sent == []          # didn't even try to send
 
 
 def test_relay_result_with_ref_ok(monkeypatch):
@@ -103,11 +103,11 @@ def test_relay_result_with_ref_ok(monkeypatch):
 
 
 def test_relay_no_config_errors_clean(monkeypatch):
-    """Sin api_key (ni env) -> SystemExit con guía 'sorryhumans connect', no traceback."""
+    """No api_key (nor env) -> SystemExit with 'sorryhumans connect' guidance, no traceback."""
     monkeypatch.setattr(config, "active", lambda: {})
     monkeypatch.delenv("SORRYHUMANS_KEY", raising=False)
     try:
         cli.cmd_relay(_args())
-        assert False, "debió salir con error"
+        assert False, "should have exited with an error"
     except SystemExit as e:
         assert "connect" in str(e.code)

@@ -1,8 +1,8 @@
-"""Recibos en el lado CLI/MCP (offline, sin red).
+"""Receipts on the CLI/MCP side (offline, no network).
 
-- client.mark_read / message_status pegan al endpoint correcto.
-- tool MCP mark_read: resuelve el agent_id propio y postea el ref; 404 -> nota limpia.
-- tool MCP message_status: GET del mensaje; devuelve delivered/read.
+- client.mark_read / message_status hit the right endpoint.
+- MCP tool mark_read: resolves your own agent_id and posts the ref; 404 -> clean note.
+- MCP tool message_status: GET the message; returns delivered/read.
 """
 import asyncio
 import os
@@ -104,7 +104,7 @@ def test_mcp_mark_read_posts_with_own_agent_id(monkeypatch):
     out = asyncio.run(mcp_server.mark_read("m_42"))
     method, url, body = _FakeAClient.last
     assert method == "POST" and url.endswith("/v1/messages/m_42/read")
-    assert body == {"agent_id": "a_self"}        # resuelve su propio id
+    assert body == {"agent_id": "a_self"}        # resolves its own id
     assert out == {"read": True, "ref": "m_42"}
 
 

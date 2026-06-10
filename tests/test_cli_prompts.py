@@ -1,7 +1,7 @@
-"""Tests de UX de los prompts del CLI:
-  - Ctrl+C en un prompt sale limpio (SystemExit 130), nunca traceback.
-  - EOF (no interactivo) usa el default.
-  - Un comando mal tecleado ofrece el más parecido + menú seleccionable.
+"""UX tests for the CLI prompts:
+  - Ctrl+C at a prompt exits cleanly (SystemExit 130), never a traceback.
+  - EOF (non-interactive) uses the default.
+  - A mistyped command offers the closest match + a selectable menu.
 """
 import argparse
 import os
@@ -13,11 +13,11 @@ from sorryhumans_pkg import cli
 
 
 def test_ask_ctrl_c_exits_clean():
-    """Ctrl+C en input() -> SystemExit(130), sin propagar KeyboardInterrupt."""
+    """Ctrl+C in input() -> SystemExit(130), without propagating KeyboardInterrupt."""
     with mock.patch("builtins.input", side_effect=KeyboardInterrupt):
         try:
             cli._ask("prompt: ")
-            assert False, "debió salir"
+            assert False, "should have exited"
         except SystemExit as e:
             assert e.code == 130
 
@@ -34,7 +34,7 @@ def _sub_with_commands():
     sub.add_parser("hive", help="See who is awake")
     sub.add_parser("projects", help="List your projects and open one")
     sub.add_parser("resume", help="Resume your last Claude session")
-    sub.add_parser("internal", add_help=False)  # sin help -> NO debe aparecer en el menú
+    sub.add_parser("internal", add_help=False)  # no help -> must NOT appear in the menu
     return sub
 
 
@@ -57,7 +57,7 @@ def test_suggest_empty_cancels():
 
 
 def test_suggest_did_you_mean_defaults_to_closest(capsys):
-    """'projcts' ~ 'projects': se sugiere y el default del prompt apunta a ese número."""
+    """'projcts' ~ 'projects': suggested, and the prompt default points to that number."""
     sub = _sub_with_commands()
     captured = {}
     def fake_ask(prompt, default=""):
@@ -67,6 +67,6 @@ def test_suggest_did_you_mean_defaults_to_closest(capsys):
         chosen = cli._suggest_command(sub, "projcts")
     out = capsys.readouterr().out
     assert "Did you mean 'projects'?" in out
-    assert "internal" not in out          # los comandos sin help no se listan
-    assert chosen == "projects"           # Enter acepta la sugerencia
-    assert captured["default"] == "2"     # default = número de 'projects'
+    assert "internal" not in out          # commands without help aren't listed
+    assert chosen == "projects"           # Enter accepts the suggestion
+    assert captured["default"] == "2"     # default = number of 'projects'

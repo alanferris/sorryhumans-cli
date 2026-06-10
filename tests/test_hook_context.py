@@ -1,12 +1,12 @@
-"""Unit tests del hook SessionStart (`sorryhumans hook-context`).
+"""Unit tests for the SessionStart hook (`sorryhumans hook-context`).
 
-El hook se instala en el settings GLOBAL de Claude Code, así que corre al arrancar
-CUALQUIER sesión, en cualquier carpeta. Solo debe inyectar el brief + el mandato del
-Monitor cuando ESTA sesión está atada explícitamente a un proyecto (env
-SORRYHUMANS_PROJECT o marker .sorryhumans). Sin binding -> additionalContext vacío,
-para no contaminar sesiones ajenas (p. ej. desarrollar el propio CLI).
+The hook is installed in Claude Code's GLOBAL settings, so it runs at the start of
+ANY session, in any folder. It should only inject the brief + the Monitor mandate
+when THIS session is explicitly bound to a project (env
+SORRYHUMANS_PROJECT or a .sorryhumans marker). Without a binding -> empty additionalContext,
+so it doesn't contaminate unrelated sessions (e.g. developing the CLI itself).
 
-No necesita backend: el branch de red se evita y solo validamos el gate.
+No backend needed: the network branch is skipped and we only validate the gate.
 """
 import io
 import json
@@ -26,20 +26,20 @@ def _run_hook_context() -> dict:
 
 
 def test_no_binding_emits_empty(monkeypatch):
-    """Sin proyecto activo (ni env ni marker) -> {} (sesión limpia, sin inyección)."""
+    """No active project (neither env nor marker) -> {} (clean session, no injection)."""
     monkeypatch.setattr(config, "active_project_id", lambda: None)
     out = _run_hook_context()
     assert out == {}
 
 
 def test_binding_emits_monitor_directive(monkeypatch):
-    """Con proyecto activo -> inyecta el mandato del Monitor en additionalContext.
+    """With an active project -> injects the Monitor mandate into additionalContext.
 
-    Dejamos la config sin api_key/team para que el branch de red se salte (no hay bus
-    en el test); igual debe emitirse el mandato del Monitor, que es lo no-negociable.
+    We leave the config without api_key/team so the network branch is skipped (no bus
+    in the test); the Monitor mandate must still be emitted, which is non-negotiable.
     """
     monkeypatch.setattr(config, "active_project_id", lambda: "t_test")
-    monkeypatch.setattr(config, "active", lambda: {})  # sin key/team -> sin llamada de red
+    monkeypatch.setattr(config, "active", lambda: {})  # no key/team -> no network call
     out = _run_hook_context()
     ctx = out["hookSpecificOutput"]["additionalContext"]
     assert out["hookSpecificOutput"]["hookEventName"] == "SessionStart"

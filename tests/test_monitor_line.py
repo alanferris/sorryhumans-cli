@@ -1,5 +1,5 @@
-"""El Monitor (listen --follow) NO debe cortar mensajes entre agentes: emite el body
-COMPLETO (sin truncar), colapsando saltos de línea a espacios para que sea un solo evento.
+"""The Monitor (listen --follow) must NOT cut messages between agents: it emits the
+FULL body (untruncated), collapsing newlines to spaces so it is a single event.
 """
 import os
 import sys
@@ -9,15 +9,15 @@ from sorryhumans_pkg import cli
 
 
 def test_short_body_full():
-    line = cli._monitor_line({"type": "chat", "from_agent": "a_x", "body": "hola"})
-    assert line == "📬 hive: chat from a_x — hola"
+    line = cli._monitor_line({"type": "chat", "from_agent": "a_x", "body": "hi"})
+    assert line == "📬 hive: chat from a_x — hi"
 
 
 def test_long_body_not_truncated():
     body = "x" * 500
     line = cli._monitor_line({"type": "task", "from_agent": "a_1", "body": body})
-    assert ("x" * 500) in line          # completo, sin cortar
-    assert "check_messages" not in line  # sin marcador de truncado
+    assert ("x" * 500) in line          # full, not cut
+    assert "check_messages" not in line  # no truncation marker
     assert "…" not in line
 
 
@@ -38,7 +38,7 @@ def test_name_resolved_when_map_has_sender():
 
 
 def test_unnamed_agent_falls_back_to_id_not_none():
-    """Mapa con id->None (agente sin nombre): se muestra el id, nunca 'None'."""
+    """Map with id->None (agent without a name): the id is shown, never 'None'."""
     line = cli._monitor_line({"type": "chat", "from_agent": "a_xyz", "body": "hi"},
                              names={"a_xyz": None})
     assert "a_xyz" in line and "None" not in line

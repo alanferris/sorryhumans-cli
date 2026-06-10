@@ -1,6 +1,6 @@
-"""El hook SessionStart debe apuntar al ejecutable REAL del venv con ruta completa.
-En Windows, un comando 'sorryhumans' a secas resuelve a un binario sin extensión y
-Claude Code dispara el diálogo "¿con qué app abrir esto?" al correr el hook.
+"""The SessionStart hook must point to the venv's REAL executable with a full path.
+On Windows, a bare 'sorryhumans' command resolves to a binary without extension and
+Claude Code pops the "which app should open this?" dialog when running the hook.
 """
 import os
 import sys
@@ -14,12 +14,12 @@ POSIX = os.path.expanduser("~/.sorryhumans/venv") + os.sep + os.path.join("bin",
 
 
 def test_hook_command_windows_uses_exe_full_path():
-    """Existe Scripts\\sorryhumans.exe -> ruta completa SIN comillas (PowerShell la ejecuta)."""
+    """Scripts\\sorryhumans.exe exists -> full path with NO quotes (PowerShell runs it)."""
     with mock.patch("os.path.exists", lambda p: p.endswith(os.path.join("Scripts", "sorryhumans.exe"))):
         cmd = cli._hook_command()
     assert cmd.endswith("sorryhumans.exe hook-context")
     assert "Scripts" in cmd
-    assert '"' not in cmd                   # SIN comillas: en PowerShell romperían el parseo
+    assert '"' not in cmd                   # NO quotes: in PowerShell they'd break parsing
 
 
 def test_hook_command_posix_uses_bin_full_path():
@@ -31,14 +31,14 @@ def test_hook_command_posix_uses_bin_full_path():
 
 
 def test_hook_command_falls_back_when_no_venv():
-    """Sin venv detectable: 'sorryhumans hook-context' (último recurso)."""
+    """No detectable venv: 'sorryhumans hook-context' (last resort)."""
     with mock.patch("os.path.exists", lambda p: False):
         assert cli._hook_command() == "sorryhumans hook-context"
 
 
 def test_hook_command_windows_uses_forward_slashes(monkeypatch):
-    """Simula Windows (rutas con backslash) -> el comando sale con '/' y sin comillas,
-    así no rompe ni en bash (escape de \\) ni en PowerShell (comillas)."""
+    """Simulate Windows (backslash paths) -> the command comes out with '/' and no quotes,
+    so it breaks neither in bash (\\ escaping) nor PowerShell (quotes)."""
     import ntpath
     monkeypatch.setattr("os.path.expanduser", lambda p: "C:\\Users\\elian\\.sorryhumans\\venv")
     monkeypatch.setattr("os.path.join", ntpath.join)
