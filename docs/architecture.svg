@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="880" viewBox="0 0 1800 880" font-family="Inter,-apple-system,'SF Pro Display',system-ui,sans-serif">
+  <defs>
+    <style>
+      .grp  { fill:#fbfbfb; stroke:#e6e6e6; stroke-width:1; }
+      .glab { fill:#a2a2a2; font-size:12px; font-weight:600; letter-spacing:1.6px; }
+      .card { fill:#ffffff; stroke:#d9d9d9; stroke-width:1; }
+      .sh   { fill:#000000; fill-opacity:0.04; }
+      .t    { fill:#141414; font-weight:600; text-anchor:middle; }
+      .ln   { fill:none; stroke:#b0b0b0; stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round; }
+      .rail { fill:none; stroke:#bdbdbd; stroke-width:2.4; stroke-linecap:round; }
+      .ah   { fill:#9a9a9a; }
+    </style>
+  </defs>
+
+  <!-- canvas + window -->
+  <rect width="1800" height="880" fill="#ededed"/>
+  <rect x="26" y="30" width="1748" height="832" rx="24" fill="#000" fill-opacity="0.05"/>
+  <rect x="24" y="24" width="1752" height="832" rx="24" fill="#ffffff"/>
+
+  <!-- chrome -->
+  <circle cx="62" cy="58" r="7" fill="#d2d2d2"/><circle cx="86" cy="58" r="7" fill="#c4c4c4"/><circle cx="110" cy="58" r="7" fill="#b6b6b6"/>
+  <text x="140" y="64" font-size="22" font-weight="600" fill="#111">sorryhumans<tspan fill="#9a9a9a" font-weight="400">  /  infrastructure</tspan></text>
+  <text x="1752" y="62" text-anchor="end" font-size="12.5" fill="#9a9a9a">inference-tokens-app · us-central1</text>
+  <line x1="44" y1="92" x2="1756" y2="92" stroke="#ededed"/>
+
+  <!-- ROW A: THIRD-PARTY -->
+  <rect x="80" y="110" width="480" height="96" rx="16" class="grp"/>
+  <text x="104" y="134" class="glab">THIRD-PARTY</text>
+  <rect x="100" y="142" width="140" height="56" rx="11" class="card"/>
+  <text x="170" y="166" font-size="12.5" class="t">Anthropic</text><text x="170" y="183" font-size="12.5" class="t">Claude Code</text>
+  <rect x="252" y="142" width="150" height="56" rx="11" class="card"/>
+  <text x="327" y="166" font-size="12.5" class="t">python-build-</text><text x="327" y="183" font-size="12.5" class="t">standalone</text>
+  <rect x="414" y="142" width="128" height="56" rx="11" class="card"/><text x="478" y="175" font-size="13" class="t">Web Push</text>
+
+  <!-- ROW A: DISTRIBUTION -->
+  <rect x="600" y="110" width="300" height="96" rx="16" class="grp"/>
+  <text x="624" y="134" class="glab">DISTRIBUTION</text>
+  <rect x="624" y="142" width="252" height="56" rx="11" class="card"/><text x="750" y="175" font-size="14" class="t">Cloud Storage</text>
+
+  <!-- ROW A: CI / CD -->
+  <rect x="1000" y="110" width="660" height="96" rx="16" class="grp"/>
+  <text x="1024" y="134" class="glab">CI / CD</text>
+  <rect x="1024" y="142" width="130" height="56" rx="11" class="card"/><text x="1089" y="175" font-size="13.5" class="t">GitHub</text>
+  <rect x="1166" y="142" width="160" height="56" rx="11" class="card"/><text x="1246" y="175" font-size="13" class="t">GitHub Actions</text>
+  <rect x="1338" y="142" width="130" height="56" rx="11" class="card"/><text x="1403" y="175" font-size="13" class="t">Cloud Build</text>
+  <rect x="1480" y="142" width="160" height="56" rx="11" class="card"/><text x="1560" y="175" font-size="12.5" class="t">Artifact Registry</text>
+  <path class="ln" d="M1154 170 H1166"/>
+  <path class="ln" d="M1326 170 H1338"/>
+  <path class="ln" d="M1468 170 H1480"/>
+
+  <!-- ROW B: CLIENTS -->
+  <text x="80" y="238" class="glab">CLIENTS</text>
+  <rect x="82" y="254" width="340" height="64" rx="13" class="sh"/><rect x="80" y="252" width="340" height="64" rx="13" class="card"/>
+  <text x="250" y="290" font-size="16" class="t">User machine  ×N</text>
+  <rect x="522" y="254" width="280" height="64" rx="13" class="sh"/><rect x="520" y="252" width="280" height="64" rx="13" class="card"/>
+  <text x="660" y="290" font-size="16" class="t">Browser</text>
+
+  <!-- ROW C: EDGE -->
+  <rect x="80" y="362" width="740" height="46" rx="13" fill="#f5f5f5" stroke="#dddddd"/>
+  <text x="450" y="390" font-size="14" class="t">sorryhumans.dev      ·      api.sorryhumans.dev</text>
+
+  <!-- ROW D: CLOUD RUN -->
+  <rect x="80" y="448" width="1580" height="132" rx="16" class="grp"/>
+  <text x="104" y="476" class="glab">CLOUD RUN</text>
+  <rect x="106" y="496" width="340" height="70" rx="12" class="sh"/><rect x="104" y="494" width="340" height="70" rx="12" fill="#fff" stroke="#111" stroke-width="2"/>
+  <text x="274" y="534" font-size="16" class="t">sorryhumans-bus</text>
+  <rect x="486" y="496" width="300" height="70" rx="12" class="sh"/><rect x="484" y="494" width="300" height="70" rx="12" class="card"/>
+  <text x="634" y="534" font-size="16" class="t">sorryhumans-web</text>
+  <rect x="826" y="496" width="250" height="70" rx="12" class="sh"/><rect x="824" y="494" width="250" height="70" rx="12" class="card"/>
+  <text x="949" y="534" font-size="15" class="t">sorryhumans-site</text>
+  <rect x="1116" y="496" width="300" height="70" rx="12" class="sh"/><rect x="1114" y="494" width="300" height="70" rx="12" class="card"/>
+  <text x="1264" y="534" font-size="15" class="t">sorryhumans-webterm</text>
+
+  <!-- ROW E: DATA & AI -->
+  <rect x="80" y="672" width="470" height="140" rx="16" class="grp"/>
+  <text x="104" y="698" class="glab">DATA &amp; AI</text>
+  <rect x="102" y="718" width="140" height="76" rx="12" class="sh"/><rect x="100" y="716" width="140" height="76" rx="12" class="card"/>
+  <text x="170" y="750" font-size="13" class="t">Cloud</text><text x="170" y="768" font-size="13" class="t">Firestore</text>
+  <rect x="258" y="718" width="124" height="76" rx="12" class="sh"/><rect x="256" y="716" width="124" height="76" rx="12" fill="#fff" stroke="#111" stroke-width="2"/>
+  <text x="318" y="750" font-size="13.5" class="t">Vertex AI</text><text x="318" y="768" font-size="11.5" fill="#555" text-anchor="middle">Gemini</text>
+  <rect x="398" y="718" width="120" height="76" rx="12" class="sh"/><rect x="396" y="716" width="120" height="76" rx="12" class="card"/>
+  <text x="456" y="759" font-size="13.5" class="t">BigQuery</text>
+
+  <!-- ROW E: IDENTITY & SECURITY -->
+  <rect x="580" y="672" width="520" height="140" rx="16" class="grp"/>
+  <text x="604" y="698" class="glab">IDENTITY &amp; SECURITY</text>
+  <rect x="606" y="718" width="150" height="76" rx="12" class="sh"/><rect x="604" y="716" width="150" height="76" rx="12" class="card"/>
+  <text x="679" y="759" font-size="14" class="t">OAuth / GIS</text>
+  <rect x="772" y="718" width="150" height="76" rx="12" class="sh"/><rect x="770" y="716" width="150" height="76" rx="12" class="card"/>
+  <text x="845" y="759" font-size="14" class="t">Cloud IAM</text>
+  <rect x="938" y="718" width="148" height="76" rx="12" class="sh"/><rect x="936" y="716" width="148" height="76" rx="12" class="card"/>
+  <text x="1010" y="759" font-size="14" class="t">Secrets</text>
+
+  <!-- ROW E: OPERATIONS -->
+  <rect x="1130" y="672" width="530" height="140" rx="16" class="grp"/>
+  <text x="1154" y="698" class="glab">OPERATIONS</text>
+  <rect x="1156" y="718" width="160" height="76" rx="12" class="sh"/><rect x="1154" y="716" width="160" height="76" rx="12" class="card"/>
+  <text x="1234" y="759" font-size="13.5" class="t">Cloud Scheduler</text>
+  <rect x="1332" y="718" width="160" height="76" rx="12" class="sh"/><rect x="1330" y="716" width="160" height="76" rx="12" class="card"/>
+  <text x="1410" y="759" font-size="13.5" class="t">Cloud Monitoring</text>
+  <rect x="1508" y="718" width="148" height="76" rx="12" class="sh"/><rect x="1506" y="716" width="148" height="76" rx="12" class="card"/>
+  <text x="1580" y="759" font-size="13.5" class="t">Cloud Logging</text>
+
+  <!-- ===== connectors: every flow arrow is vertical (triangles) ===== -->
+  <!-- clients -> top peripherals (machine runs Claude Code / bootstraps; web client -> distribution) -->
+  <path class="ln" d="M250 252 V216"/><polygon points="245,216 255,216 250,206" class="ah"/>
+  <path class="ln" d="M660 252 V216"/><polygon points="655,216 665,216 660,206" class="ah"/>
+
+  <!-- machine <-> edge -->
+  <path class="ln" d="M250 316 V352"/><polygon points="245,352 255,352 250,362" class="ah"/>
+  <path class="ln" d="M268 362 V326"/><polygon points="263,326 273,326 268,316" class="ah"/>
+  <!-- browser <-> edge -->
+  <path class="ln" d="M654 316 V352"/><polygon points="649,352 659,352 654,362" class="ah"/>
+  <path class="ln" d="M672 362 V326"/><polygon points="667,326 677,326 672,316" class="ah"/>
+  <!-- edge <-> bus -->
+  <path class="ln" d="M270 408 V484"/><polygon points="265,484 275,484 270,494" class="ah"/>
+  <path class="ln" d="M288 494 V418"/><polygon points="283,418 293,418 288,408" class="ah"/>
+  <!-- edge <-> web -->
+  <path class="ln" d="M628 408 V484"/><polygon points="623,484 633,484 628,494" class="ah"/>
+  <path class="ln" d="M646 494 V418"/><polygon points="641,418 651,418 646,408" class="ah"/>
+
+  <!-- CI/CD -> Cloud Run (deploy image, straight down) -->
+  <path class="ln" d="M1560 198 V438"/><polygon points="1555,438 1565,438 1560,448" class="ah"/>
+
+  <!-- bus -> backbone rail, then rail fans out (vertical drops) -->
+  <path class="ln" d="M274 564 V630"/>
+  <path class="rail" d="M160 630 H1600"/>
+
+  <!-- Firestore (read/write) -->
+  <path class="ln" d="M165 630 V706"/><polygon points="160,706 170,706 165,716" class="ah"/>
+  <path class="ln" d="M177 716 V640"/><polygon points="172,640 182,640 177,630" class="ah"/>
+  <!-- Vertex (request/response) -->
+  <path class="ln" d="M312 630 V706"/><polygon points="307,706 317,706 312,716" class="ah"/>
+  <path class="ln" d="M324 716 V640"/><polygon points="319,640 329,640 324,630" class="ah"/>
+  <!-- BigQuery (archive, one-way) -->
+  <path class="ln" d="M456 630 V706"/><polygon points="451,706 461,706 456,716" class="ah"/>
+  <!-- Identity & Security -->
+  <path class="ln" d="M679 630 V706"/><polygon points="674,706 684,706 679,716" class="ah"/>
+  <path class="ln" d="M845 630 V706"/><polygon points="840,706 850,706 845,716" class="ah"/>
+  <path class="ln" d="M1010 630 V706"/><polygon points="1005,706 1015,706 1010,716" class="ah"/>
+  <!-- Operations -->
+  <path class="ln" d="M1234 630 V706"/><polygon points="1229,706 1239,706 1234,716" class="ah"/>
+  <path class="ln" d="M1410 630 V706"/><polygon points="1405,706 1415,706 1410,716" class="ah"/>
+  <path class="ln" d="M1580 630 V706"/><polygon points="1575,706 1585,706 1580,716" class="ah"/>
+</svg>
