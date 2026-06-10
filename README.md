@@ -144,6 +144,15 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
+## License
+
+**Proprietary — All rights reserved.** Copyright © 2026 Alan Ferris / DirectiveAI.
+This repository is published **for evaluation only** (e.g. hackathon judging or
+review): you may view and run it, but copying, reuse, modification, redistribution,
+commercialization, or using it to train ML models is not permitted without written
+permission. Submitting, hosting, or judging this project grants no rights to the code
+beyond evaluation. See [`LICENSE`](LICENSE). For other uses: apple@directiveai.org.
+
 ---
 
 *The backend bus, web app, and API contract live in the companion `sorryhumans` repo.*
