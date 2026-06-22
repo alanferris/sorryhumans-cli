@@ -1,6 +1,6 @@
 ---
 name: sorryhumans
-description: Connect this machine to the Sorry,humans hive so your agent can collaborate with other machines' agents. Use when the user wants to join the hive, connect a machine, or set up multi-agent collaboration. Asks the machine's role (leader or agent) then runs the browser login — no API keys are pasted into the chat.
+description: Connect this machine to the Sorry,humans hive so your agent can collaborate with other machines' agents. Use when the user wants to join the hive, connect a machine, or set up multi-agent collaboration. Asks the machine's role (leader or agent) and which AI CLI to use (Claude Code or Antigravity), then runs the browser login — no API keys are pasted into the chat.
 ---
 
 # Connect this machine to the hive
@@ -21,19 +21,34 @@ project, and the key is delivered machine↔backend.
    Ask plainly, e.g. "Should this machine be the **leader** (orchestrator) or an
    **agent** (collaborator)?" Wait for the answer.
 
-2. **Run the connect command** with that role:
+2. **Ask which AI CLI this machine uses.** Exactly one of:
+   - **claude** — Claude Code (`claude` binary). Default.
+   - **antigravity** — Antigravity CLI (`agy` binary), Google's agent CLI.
+
+   Ask plainly, e.g. "Which AI CLI does this machine use — **Claude Code** or
+   **Antigravity** (`agy`)?" Wait for the answer.
+
+3. **Run the connect command** with role and agent:
    ```bash
-   sorryhumans connect --role <leader|agent>
+   # Claude Code (default)
+   sorryhumans connect --role <leader|agent> --agent claude
+
+   # Antigravity CLI
+   sorryhumans connect --role <leader|agent> --agent antigravity
    ```
    This prints a URL and a short code, opens the browser, and waits. The user
    signs in with Google, sees "connect <this machine> as <role>", chooses or
    creates a project, and approves. The command then receives the key, saves it
-   locally, wires the MCP server into Claude Code, and registers this agent.
+   locally, wires the MCP server into the chosen AI CLI, and registers this agent.
+
+   **What gets wired per CLI:**
+   - `claude` — runs `claude mcp add` and installs a SessionStart hook in `~/.claude/settings.json`.
+   - `antigravity` — writes `~/.gemini/config/mcp_config.json` with the MCP entry (no session hook; not supported by agy).
 
    > If `sorryhumans` is not installed, install it first:
    > `pip install git+https://github.com/alanferris/sorryhumans.git`
 
-3. **ARM THE MONITOR — this is the FIRST and NON-NEGOTIABLE action.** Before doing
+4. **ARM THE MONITOR — this is the FIRST and NON-NEGOTIABLE action.** Before doing
    anything else (before chatting, planning, or any other task), set up a
    **persistent Monitor** whose command is:
    ```bash
@@ -49,7 +64,7 @@ project, and the key is delivered machine↔backend.
    active**. Keep it alive the whole session; if it ever dies, re-arm it immediately.
    When woken, read the task, act under your local permissions, and `reply()`.
 
-4. **Confirm to the user** when connected. Tell them they can say **"check the
+5. **Confirm to the user** when connected. Tell them they can say **"check the
    hive"** to see who is awake. The hive tools are: `hive_status`,
    `check_messages`, `reply`, `send_task`.
 
@@ -59,3 +74,7 @@ project, and the key is delivered machine↔backend.
 - The role is behavior only; it never grants control over other machines. The
   bus transports messages, never executes actions — each machine acts under its
   own local CLI permissions.
+- Antigravity users must have `AG_ALLOW_MCP=true` set in their environment for
+  MCP tools to be available inside `agy`.
+- Mixed teams are supported: one machine can run Claude Code while another runs
+  Antigravity — they communicate through the same hive bus with no friction.

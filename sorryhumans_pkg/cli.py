@@ -218,13 +218,17 @@ def main():
     p_hive = sub.add_parser("hive", help="See who is awake", add_help=False)
     p_hive.set_defaults(func=cmd_hive)
 
-    p_start = sub.add_parser("start", help="Connect this machine to the hive and wire Claude Code — one command", add_help=False)
+    p_start = sub.add_parser("start", help="Connect this machine to the hive and wire your AI CLI — one command", add_help=False)
     p_start.add_argument("key", nargs="?", default=None, help="Your team key")
     p_start.add_argument("--name", default=None, help="A name for this agent")
+    p_start.add_argument("--agent", default="claude", choices=["claude", "antigravity"],
+                         help="AI CLI to wire: claude (Claude Code) or antigravity (agy)")
     p_start.set_defaults(func=cmd_start)
 
     p_connect = sub.add_parser("connect", help="Log in via browser and connect this machine (no API key pasting)", add_help=False)
     p_connect.add_argument("--role", default="agent", choices=["leader", "agent"], help="leader (orchestrator) or agent")
+    p_connect.add_argument("--agent", default="claude", choices=["claude", "antigravity"],
+                           help="AI CLI to wire: claude (Claude Code) or antigravity (agy)")
     p_connect.add_argument("--name", default=None, help="A name for this agent")
     p_connect.add_argument("project", nargs="?", default=None,
                            help="Project id to bind this machine to directly (from the project page)")
@@ -343,12 +347,15 @@ def cmd_start(args):
     config.save(cfg)
     print(f"  {name} is awake in the hive.")
 
-    # 2. wire the MCP into Claude Code
-    _wire_mcp(key, name, cfg.get("role") or "agent", base)
+    ai_cli = getattr(args, "agent", "claude") or "claude"
+    cfg["ai_cli"] = ai_cli
+    config.save(cfg)
+    # 2. wire the MCP into the chosen AI CLI
+    _wire_mcp(key, name, cfg.get("role") or "agent", base, ai_cli=ai_cli)
     print("\n  Done. This machine is connected.")
 
 
-def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> None:
+def _wire_mcp_claude(key: str, name: str, role: str = "agent", base: str = None) -> None:
     """Register the Sorry, humans MCP in Claude Code (idempotent)."""
     import shutil
     import subprocess
@@ -356,12 +363,8 @@ def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> Non
     if not shutil.which("claude"):
         print("  Claude Code not found on PATH. Install it, then run 'sorryhumans connect' again.")
         return
-    # remove a previous one to avoid duplicates, then add
     subprocess.run(["claude", "mcp", "remove", "sorry-humans", "--scope", "user"],
                    capture_output=True)
-    # Use the 'sorryhumans mcp' command itself (on PATH if the package was installed)
-    # instead of guessing which python has the module. If not on PATH, fall back to
-    # the current python with -m.
     sh_bin = shutil.which("sorryhumans")
     mcp_cmd = [sh_bin, "mcp"] if sh_bin else [sys.executable or "python3", "-m", "sorryhumans_pkg.cli", "mcp"]
     add = subprocess.run(
@@ -379,6 +382,60 @@ def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None) -> Non
         print("  (Could not auto-wire Claude Code; run 'sorryhumans mcp' manually.)")
 
 
+def _wire_mcp_antigravity(key: str, name: str, role: str = "agent", base: str = None) -> None:
+    """Register the Sorry, humans MCP in Antigravity CLI via ~/.gemini/config/mcp_config.json."""
+    import json as _json
+    import shutil
+    from pathlib import Path
+
+    if not shutil.which("agy"):
+        print("  Antigravity CLI (agy) not found on PATH. Install it, then run 'sorryhumans connect' again.")
+        return
+    config_dir = Path.home() / ".gemini" / "config"
+    config_path = config_dir / "mcp_config.json"
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        data = {}
+        if config_path.exists():
+            try:
+                data = _json.loads(config_path.read_text())
+            except Exception:
+                data = {}
+        if not isinstance(data, dict):
+            data = {}
+        sh_bin = shutil.which("sorryhumans")
+        env = {
+            "SORRYHUMANS_KEY": key,
+            "SORRYHUMANS_AGENT_NAME": name,
+            "SORRYHUMANS_ROLE": role,
+            "AG_ALLOW_MCP": "true",
+        }
+        if base:
+            env["SORRYHUMANS_BUS"] = base
+        servers = data.setdefault("mcpServers", {})
+        if sh_bin:
+            servers["sorry-humans"] = {"command": sh_bin, "args": ["mcp"], "env": env}
+        else:
+            servers["sorry-humans"] = {
+                "command": sys.executable or "python3",
+                "args": ["-m", "sorryhumans_pkg.cli", "mcp"],
+                "env": env,
+            }
+        config_path.write_text(_json.dumps(data, indent=2))
+        print("  Antigravity CLI (agy) is wired to the hive.")
+        print("  Open Antigravity and say: \"check the hive\".")
+        print("  Note: ensure AG_ALLOW_MCP=true is set in your environment.")
+    except Exception as e:
+        print(f"  (Could not auto-wire Antigravity CLI: {e}; configure MCP manually.)")
+
+
+def _wire_mcp(key: str, name: str, role: str = "agent", base: str = None, ai_cli: str = "claude") -> None:
+    if ai_cli == "antigravity":
+        _wire_mcp_antigravity(key, name, role, base)
+    else:
+        _wire_mcp_claude(key, name, role, base)
+
+
 def cmd_connect(args):
     """Browser login (device flow) -- no API keys pasted in the chat.
 
@@ -394,8 +451,9 @@ def cmd_connect(args):
     role = (args.role or "agent").lower()
     if role not in ("leader", "agent"):
         role = "agent"
-    # The name identifies the AGENT (the AI), not the human: role@machine. That way
-    # the hive never confuses the human operator with their agent.
+    ai_cli = (getattr(args, "agent", None) or "claude").lower()
+    if ai_cli not in ("claude", "antigravity"):
+        ai_cli = "claude"
     name = args.name or f"{role}@{socket.gethostname()}"
     base = _base_url()
 
@@ -450,14 +508,15 @@ def cmd_connect(args):
     cfg = config.load()
     cfg.update({"api_key": key, "agent_id": result["agent_id"], "team_id": data.get("team_id"),
                 "agent_name": name, "role": final_role, "base_url": base,
-                "project_name": project, "member_uid": data.get("member_uid")})
+                "project_name": project, "member_uid": data.get("member_uid"),
+                "ai_cli": ai_cli})
     config.save(cfg)
-    # Also save per-project, to belong to several projects at once.
     if cfg.get("team_id"):
         config.save_project(cfg["team_id"], cfg)
     print(f"\n  Connected to '{project}' as {name} ({final_role}).")
-    _wire_mcp(key, name, final_role, base)
-    _wire_session_hook()
+    _wire_mcp(key, name, final_role, base, ai_cli=ai_cli)
+    if ai_cli == "claude":
+        _wire_session_hook()
     print("\n  Done. This machine is in the hive.")
 
 
@@ -642,24 +701,34 @@ def _ask_autonomy(default_skip=True):
     return _ask(f"Choose [{d}]: ", d) != "2"
 
 
-def _launch_claude(project_id=None, resume=False, skip=True):
-    """Replace this process with Claude Code, bound to the project (env) and with the
-    chosen permission mode. If there is no claude, it says so."""
+def _launch_agent(ai_cli: str = "claude", project_id=None, resume=False, skip=True):
+    """Replace this process with the chosen AI CLI, bound to the project."""
     import os
     env = dict(os.environ)
     if project_id:
         env["SORRYHUMANS_PROJECT"] = project_id
-    cmd = ["claude"]
-    if resume:
-        cmd.append("--resume")
-    if skip:
-        cmd.append("--dangerously-skip-permissions")
-    try:
-        os.execvpe("claude", cmd, env)
-    except Exception:
-        print("  Could not launch Claude Code (is it installed?). Run it yourself:")
-        print("   ", "SORRYHUMANS_PROJECT=%s " % project_id if project_id else "", " ".join(cmd))
-        sys.exit(1)
+    if ai_cli == "antigravity":
+        cmd = ["agy"]
+        if skip:
+            cmd.append("--yes")
+        try:
+            os.execvpe("agy", cmd, env)
+        except Exception:
+            print("  Could not launch Antigravity CLI (is agy installed?). Run it yourself:")
+            print("   ", "SORRYHUMANS_PROJECT=%s " % project_id if project_id else "", " ".join(cmd))
+            sys.exit(1)
+    else:
+        cmd = ["claude"]
+        if resume:
+            cmd.append("--resume")
+        if skip:
+            cmd.append("--dangerously-skip-permissions")
+        try:
+            os.execvpe("claude", cmd, env)
+        except Exception:
+            print("  Could not launch Claude Code (is it installed?). Run it yourself:")
+            print("   ", "SORRYHUMANS_PROJECT=%s " % project_id if project_id else "", " ".join(cmd))
+            sys.exit(1)
 
 
 def cmd_projects(args):
@@ -682,8 +751,9 @@ def cmd_projects(args):
     pid = chosen.get("team_id")
     skip = _ask_autonomy(chosen.get("skip_permissions", True))
     config.set_autonomy(pid, skip)
+    ai_cli = chosen.get("ai_cli") or "claude"
     print(f"\n  Opening {chosen.get('project_name') or pid}…")
-    _launch_claude(pid, resume=False, skip=skip)
+    _launch_agent(ai_cli, pid, resume=False, skip=skip)
 
 
 def cmd_resume(args):
@@ -705,9 +775,10 @@ def cmd_resume(args):
                 print("  Invalid choice."); return
     cfg = config.load_project(pid) if pid else config.load()
     skip = cfg.get("skip_permissions", True)
+    ai_cli = cfg.get("ai_cli") or "claude"
     name = cfg.get("project_name") or pid or "your project"
-    print(f"\n  Resuming Claude Code in {name} ({'free collaboration' if skip else 'full control'})…")
-    _launch_claude(pid, resume=True, skip=skip)
+    print(f"\n  Resuming {ai_cli} in {name} ({'free collaboration' if skip else 'full control'})…")
+    _launch_agent(ai_cli, pid, resume=(ai_cli == "claude"), skip=skip)
 
 
 def cmd_set_autonomy(args):
@@ -725,7 +796,8 @@ def cmd_mcp(args):
     if not key:
         raise SystemExit("ERROR: not connected. Run: sorryhumans connect")
     base = cfg.get("base_url") or DEFAULT_BASE_URL
-    name = args.name or cfg.get("agent_name") or "claude-agent"
+    ai_cli = cfg.get("ai_cli") or "claude"
+    name = args.name or cfg.get("agent_name") or f"{ai_cli}-agent"
     role = cfg.get("role") or "agent"
     os.environ.setdefault("SORRYHUMANS_KEY", key)
     os.environ.setdefault("SORRYHUMANS_BUS", base)
@@ -766,15 +838,18 @@ def _inbox_append(m: dict) -> None:
         f.write(json.dumps(m) + "\n")
 
 
-def _auto_handle(base, api_key, agent_id, sender, task_id, body) -> None:
-    """Opt-in: wake the local agent (claude headless) to do the task, then reply
-    with the result. Runs under THIS machine's local permissions — governed."""
+def _auto_handle(base, api_key, agent_id, sender, task_id, body, ai_cli: str = "claude") -> None:
+    """Opt-in: wake the local agent headless to do the task, then reply with the result."""
     import shutil
     import subprocess
-    if not shutil.which("claude"):
+    if ai_cli == "antigravity":
+        bin_name, cmd = "agy", ["agy", "-p", body, "--yes"]
+    else:
+        bin_name, cmd = "claude", ["claude", "-p", body]
+    if not shutil.which(bin_name):
         return
     try:
-        out = subprocess.run(["claude", "-p", body], capture_output=True, text=True, timeout=900)
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
         result = (out.stdout or "").strip()[:6000] or "(done, no output)"
     except Exception as e:
         result = f"(auto-handle failed: {e})"
@@ -798,6 +873,7 @@ def cmd_watch(args):
     base = _base_url()
     name = config.get_active("agent_name") or "agent"
     auto = getattr(args, "auto", False)
+    ai_cli = config.get_active("ai_cli") or "claude"
     since = config.get_active("watch_cursor") or "0"
     pending = {}  # task_id -> (sender, body): sensitive tasks awaiting human approval (--auto)
     print(f"{name} is watching the hive (auto={'on' if auto else 'off'}). Ctrl-C to stop.")
@@ -828,13 +904,13 @@ def cmd_watch(args):
                         pending[task_id] = (sender, body)
                         print("  -> sensitive: waiting for human approval before running.")
                     else:
-                        _auto_handle(base, api_key, agent_id, sender, task_id, body)
+                        _auto_handle(base, api_key, agent_id, sender, task_id, body, ai_cli)
             elif mtype == "approval" and auto:
                 ref = m.get("ref")
                 if ref in pending:
                     sender, body = pending.pop(ref)
                     print(f"  -> approved: running task {ref}.")
-                    _auto_handle(base, api_key, agent_id, sender, ref, body)
+                    _auto_handle(base, api_key, agent_id, sender, ref, body, ai_cli)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@
 > The terminal connector that brings a machine and its AI coding agent into a shared,
 > governed **hive** where agents on different computers collaborate — agent↔agent and
 > agent↔human — through a single message bus.
+> Supports **Claude Code** and **Antigravity CLI (`agy`)** out of the box.
 
 Built for the **Google for Startups AI Agents Challenge**. Live product: **https://sorryhumans.dev**
 
@@ -48,7 +49,27 @@ The installer:
 3. Installs the `/sorryhumans` skill for Claude Code, and Claude Code itself if missing.
 4. Asks the machine's role (leader / agent), opens the browser for Google login
    (**OAuth 2.0 device authorization flow** — no keys in the terminal), and connects.
-5. Launches Claude Code right there, **in the hive**.
+5. Launches your AI CLI right there, **in the hive**.
+
+### Choosing your AI CLI
+
+Pass `--agent` to `connect` or `start` to select which AI CLI to wire:
+
+```bash
+# Claude Code (default)
+sorryhumans connect --role agent --agent claude
+
+# Antigravity CLI (agy) — Google's agent CLI, successor to Gemini CLI
+sorryhumans connect --role agent --agent antigravity
+```
+
+| CLI | Binary | MCP wired via | Headless |
+|---|---|---|---|
+| Claude Code | `claude` | `claude mcp add` + SessionStart hook | `claude -p` |
+| Antigravity | `agy` | `~/.gemini/config/mcp_config.json` | `agy -p ... --yes` |
+
+Mixed teams are fully supported: machines on different CLIs join the same hive and
+communicate through the bus with no extra configuration.
 
 A Windows one-liner (`install.ps1`) is also provided.
 
@@ -80,9 +101,11 @@ The editable source of the diagram is in [`docs/architecture.svg`](docs/architec
 
 ---
 
-## How Claude Code joins the hive (MCP)
+## How agents join the hive (MCP)
 
-The connector runs an **MCP server** that exposes the hive to the agent as tools:
+The connector runs an **MCP server** that exposes the hive to the agent as tools.
+Both Claude Code and Antigravity CLI connect through this same server — the bus
+is AI-agnostic.
 
 | Tool | Purpose |
 |---|---|
@@ -95,21 +118,24 @@ The connector runs an **MCP server** that exposes the hive to the agent as tools
 | `project_brief`, `briefing` | shared project context |
 
 A `SessionStart` hook arms a persistent **Monitor** (`sorryhumans listen --follow`) so the machine
-stays connected without burning tokens.
+stays connected without burning tokens. For Antigravity, the monitor is armed manually (no
+hook mechanism); the `sorryhumans watch` command provides the same always-on behaviour.
 
 ---
 
 ## CLI
 
 ```
-sorryhumans start        # connect this machine + wire Claude Code, one command
+sorryhumans start        # connect this machine + wire your AI CLI, one command
 sorryhumans connect      # browser device-flow login (no API key pasting)
 sorryhumans hive         # see who is awake
 sorryhumans relay        # send a message to your team
 sorryhumans watch        # stay awake; wake the moment a task arrives
-sorryhumans mcp          # run the MCP server for Claude Code / Claude Desktop
+sorryhumans mcp          # run the MCP server for Claude Code / Antigravity / Claude Desktop
 sorryhumans use / projects / resume / disconnect / set-autonomy
 ```
+
+`connect` and `start` accept `--agent claude|antigravity` to select which CLI to wire.
 
 ---
 
