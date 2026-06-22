@@ -760,7 +760,7 @@ def cmd_projects(args):
     pid = chosen.get("team_id")
     skip = _ask_autonomy(chosen.get("skip_permissions", True))
     config.set_autonomy(pid, skip)
-    ai_cli = chosen.get("ai_cli") or _ask_ai_cli()
+    ai_cli = _ask_ai_cli()
     print(f"\n  Opening {chosen.get('project_name') or pid}…")
     _launch_agent(ai_cli, pid, resume=False, skip=skip)
 
@@ -784,7 +784,7 @@ def cmd_resume(args):
                 print("  Invalid choice."); return
     cfg = config.load_project(pid) if pid else config.load()
     skip = cfg.get("skip_permissions", True)
-    ai_cli = cfg.get("ai_cli") or "claude"
+    ai_cli = _ask_ai_cli()
     name = cfg.get("project_name") or pid or "your project"
     print(f"\n  Resuming {ai_cli} in {name} ({'free collaboration' if skip else 'full control'})…")
     _launch_agent(ai_cli, pid, resume=(ai_cli == "claude"), skip=skip)

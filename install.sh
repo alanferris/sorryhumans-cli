@@ -14,7 +14,7 @@ set -e
 PROJECT="${1:-}"
 
 DIST="https://storage.googleapis.com/sorryhumans-dist"
-WHEEL="sorryhumans_cli-0.1.28-py3-none-any.whl"
+WHEEL="sorryhumans_cli-0.1.29-py3-none-any.whl"
 BOLD="\033[1m"; RESET="\033[0m"; ORANGE="\033[38;5;202m"
 
 # Download a URL to stdout using whatever HTTP tool exists (curl OR wget). Lets the
@@ -151,22 +151,36 @@ elif [ -e /dev/tty ]; then
 else
   ROLE="agent"
 fi
+
+# Ask which AI CLI to use for this session.
+AGENT_CLI="claude"
+if [ -e /dev/tty ]; then
+  printf "\n${BOLD}Which AI assistant do you want to connect?${RESET}\n"
+  printf "  ${ORANGE}1${RESET}) Claude Code (claude)  — Anthropic\n"
+  printf "  ${ORANGE}2${RESET}) Antigravity CLI (agy) — Google\n"
+  printf "Choose [1]: "
+  AGENT_CHOICE=""
+  read AGENT_CHOICE </dev/tty || true
+  [ "$AGENT_CHOICE" = "2" ] && AGENT_CLI="antigravity"
+fi
+
 echo ""
-$RUN connect --role "$ROLE" ${PROJECT:+"$PROJECT"}
+$RUN connect --role "$ROLE" --agent "$AGENT_CLI" ${PROJECT:+"$PROJECT"}
 
 # Bind THIS launched window to the project (per-window, via env) so multiple windows
 # can target different projects even from the same directory.
 [ -n "$PROJECT" ] && export SORRYHUMANS_PROJECT="$PROJECT"
 
-# Auto-launch Claude Code only if stdin is a real interactive tty. With 'curl | sh'
+# Auto-launch the chosen AI CLI only if stdin is a real interactive tty. With 'curl | sh'
 # stdin is the pipe (not a tty) and launching the TUI would hang, so we just tell
 # the user how to open it.
-if command -v claude >/dev/null 2>&1; then
+AI_BIN="claude"; [ "$AGENT_CLI" = "antigravity" ] && AI_BIN="agy"
+if command -v "$AI_BIN" >/dev/null 2>&1; then
   if [ -t 0 ]; then
     # Autonomy: how the agent runs in the hive. Option 1 skips per-command approval
     # (recommended — lets agents act on hive tasks and collaborate without you hitting
     # Enter for every command). Option 2 keeps you in control of every command.
-    CLAUDE_CMD="claude --dangerously-skip-permissions"; SKIP=1
+    AI_CMD="$AI_BIN --dangerously-skip-permissions"; SKIP=1
     if [ -e /dev/tty ]; then
       printf "\n${BOLD}How should your agent run in the hive?${RESET}\n"
       printf "  ${ORANGE}1${RESET}) Let it collaborate freely — ${BOLD}recommended${RESET} (acts on hive tasks without asking you to approve every command)\n"
@@ -174,14 +188,16 @@ if command -v claude >/dev/null 2>&1; then
       printf "Choose [1]: "
       MODE=""
       read MODE </dev/tty || true
-      [ "$MODE" = "2" ] && { CLAUDE_CMD="claude"; SKIP=0; }
+      [ "$MODE" = "2" ] && { AI_CMD="$AI_BIN"; SKIP=0; }
     fi
     # Remember the mode so 'sorryhumans resume' reopens with the same permissions.
     $RUN set-autonomy "$PROJECT" "$SKIP" 2>/dev/null || true
-    printf "\n${BOLD}Opening Claude Code...${RESET} (say \"check the hive\" once it loads)\n"
+    printf "\n${BOLD}Opening ${AI_BIN}...${RESET} (say \"check the hive\" once it loads)\n"
     sleep 1
-    exec $CLAUDE_CMD
+    exec $AI_CMD
   else
-    printf "\n${BOLD}You're in the hive.${RESET} Run ${ORANGE}claude --dangerously-skip-permissions${RESET} (recommended for the hive) and say \"check the hive\".\n\n"
+    printf "\n${BOLD}You're in the hive.${RESET} Run ${ORANGE}${AI_BIN} --dangerously-skip-permissions${RESET} (recommended for the hive) and say \"check the hive\".\n\n"
   fi
+else
+  printf "\n${BOLD}You're in the hive.${RESET} Open ${ORANGE}${AI_BIN}${RESET} and say \"check the hive\".\n\n"
 fi
