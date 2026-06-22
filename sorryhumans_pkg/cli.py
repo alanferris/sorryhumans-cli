@@ -710,7 +710,7 @@ def _launch_agent(ai_cli: str = "claude", project_id=None, resume=False, skip=Tr
     if ai_cli == "antigravity":
         cmd = ["agy"]
         if skip:
-            cmd.append("--yes")
+            cmd.append("--dangerously-skip-permissions")
         try:
             os.execvpe("agy", cmd, env)
         except Exception:
@@ -843,7 +843,7 @@ def _auto_handle(base, api_key, agent_id, sender, task_id, body, ai_cli: str = "
     import shutil
     import subprocess
     if ai_cli == "antigravity":
-        bin_name, cmd = "agy", ["agy", "-p", body, "--yes"]
+        bin_name, cmd = "agy", ["agy", "-p", body, "--dangerously-skip-permissions"]
     else:
         bin_name, cmd = "claude", ["claude", "-p", body]
     if not shutil.which(bin_name):

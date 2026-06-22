@@ -66,7 +66,7 @@ sorryhumans connect --role agent --agent antigravity
 | CLI | Binary | MCP wired via | Headless |
 |---|---|---|---|
 | Claude Code | `claude` | `claude mcp add` + SessionStart hook | `claude -p` |
-| Antigravity | `agy` | `~/.gemini/config/mcp_config.json` | `agy -p ... --yes` |
+| Antigravity | `agy` | `~/.gemini/config/mcp_config.json` | `agy -p ... --dangerously-skip-permissions` |
 
 Mixed teams are fully supported: machines on different CLIs join the same hive and
 communicate through the bus with no extra configuration.
