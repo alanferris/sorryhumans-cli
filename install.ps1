@@ -16,7 +16,7 @@ param(
 if (-not $Project -and $env:SORRYHUMANS_PROJECT) { $Project = $env:SORRYHUMANS_PROJECT }
 
 $Dist  = "https://storage.googleapis.com/sorryhumans-dist"
-$Wheel = "sorryhumans_cli-0.1.27-py3-none-any.whl"
+$Wheel = "sorryhumans_cli-0.1.28-py3-none-any.whl"
 $Root  = $env:USERPROFILE
 $ShDir = Join-Path $Root ".sorryhumans"
 $Venv  = Join-Path $ShDir "venv"
