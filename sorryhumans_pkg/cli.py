@@ -221,13 +221,13 @@ def main():
     p_start = sub.add_parser("start", help="Connect this machine to the hive and wire your AI CLI — one command", add_help=False)
     p_start.add_argument("key", nargs="?", default=None, help="Your team key")
     p_start.add_argument("--name", default=None, help="A name for this agent")
-    p_start.add_argument("--agent", default="claude", choices=["claude", "antigravity"],
+    p_start.add_argument("--agent", default=None, choices=["claude", "antigravity"],
                          help="AI CLI to wire: claude (Claude Code) or antigravity (agy)")
     p_start.set_defaults(func=cmd_start)
 
     p_connect = sub.add_parser("connect", help="Log in via browser and connect this machine (no API key pasting)", add_help=False)
     p_connect.add_argument("--role", default="agent", choices=["leader", "agent"], help="leader (orchestrator) or agent")
-    p_connect.add_argument("--agent", default="claude", choices=["claude", "antigravity"],
+    p_connect.add_argument("--agent", default=None, choices=["claude", "antigravity"],
                            help="AI CLI to wire: claude (Claude Code) or antigravity (agy)")
     p_connect.add_argument("--name", default=None, help="A name for this agent")
     p_connect.add_argument("project", nargs="?", default=None,
@@ -347,7 +347,7 @@ def cmd_start(args):
     config.save(cfg)
     print(f"  {name} is awake in the hive.")
 
-    ai_cli = getattr(args, "agent", "claude") or "claude"
+    ai_cli = getattr(args, "agent", None) or _ask_ai_cli()
     cfg["ai_cli"] = ai_cli
     config.save(cfg)
     # 2. wire the MCP into the chosen AI CLI
@@ -451,7 +451,7 @@ def cmd_connect(args):
     role = (args.role or "agent").lower()
     if role not in ("leader", "agent"):
         role = "agent"
-    ai_cli = (getattr(args, "agent", None) or "claude").lower()
+    ai_cli = (getattr(args, "agent", None) or _ask_ai_cli()).lower()
     if ai_cli not in ("claude", "antigravity"):
         ai_cli = "claude"
     name = args.name or f"{role}@{socket.gethostname()}"
@@ -692,6 +692,15 @@ def _ask(prompt, default=""):
         return default
 
 
+def _ask_ai_cli() -> str:
+    """Prompt the user to choose which AI CLI to wire to the hive."""
+    print("\nWhich AI assistant do you want to connect?")
+    print("  1) Claude Code (claude)  — Anthropic")
+    print("  2) Antigravity CLI (agy) — Google")
+    sel = _ask("Choose [1]: ", "1").strip()
+    return "antigravity" if sel == "2" else "claude"
+
+
 def _ask_autonomy(default_skip=True):
     """Ask how the agent should run (1=collaborate freely / 2=full control). -> skip(bool)."""
     print("\nHow should your agent run in the hive?")
@@ -751,7 +760,7 @@ def cmd_projects(args):
     pid = chosen.get("team_id")
     skip = _ask_autonomy(chosen.get("skip_permissions", True))
     config.set_autonomy(pid, skip)
-    ai_cli = chosen.get("ai_cli") or "claude"
+    ai_cli = chosen.get("ai_cli") or _ask_ai_cli()
     print(f"\n  Opening {chosen.get('project_name') or pid}…")
     _launch_agent(ai_cli, pid, resume=False, skip=skip)
 
