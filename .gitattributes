@@ -1,0 +1,6 @@
+# Shell scripts must always use LF — CRLF breaks them on Linux/Mac
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+# Default: let git decide for everything else
+*       text=auto
