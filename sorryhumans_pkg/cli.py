@@ -238,6 +238,9 @@ def main():
     p_mcp.add_argument("--name", default=None, help="Agent name")
     p_mcp.set_defaults(func=cmd_mcp)
 
+    p_gmail = sub.add_parser("gmail-mcp", help="Start the Gmail MCP server (used by the connector wiring)", add_help=False)
+    p_gmail.set_defaults(func=cmd_gmail_mcp)
+
     p_watch = sub.add_parser("watch", help="Stay awake on the hive: wake the moment a task arrives", add_help=False)
     p_watch.add_argument("--auto", action="store_true", help="Auto-handle tasks with the local agent (claude headless), governed by local permissions")
     p_watch.set_defaults(func=cmd_watch)
@@ -355,6 +358,21 @@ def cmd_start(args):
     print("\n  Done. This machine is connected.")
 
 
+def _gmail_mcp_env(key: str, base: str = None):
+    """Env for the Gmail MCP — only when this project + member is known (so the MCP
+    can mint the right user's token). Returns a dict, or None to skip wiring."""
+    cfg = config.active() or config.load()
+    team_id = cfg.get("team_id", "")
+    member_uid = cfg.get("member_uid", "")
+    if not (team_id and member_uid):
+        return None
+    env = {"SORRYHUMANS_KEY": key, "SORRYHUMANS_TEAM_ID": team_id,
+           "SORRYHUMANS_MEMBER_UID": member_uid}
+    if base:
+        env["SORRYHUMANS_BUS"] = base
+    return env
+
+
 def _wire_mcp_claude(key: str, name: str, role: str = "agent", base: str = None) -> None:
     """Register the Sorry, humans MCP in Claude Code (idempotent)."""
     import shutil
@@ -380,6 +398,19 @@ def _wire_mcp_claude(key: str, name: str, role: str = "agent", base: str = None)
         print("  Open Claude Code and say: \"check the hive\".")
     else:
         print("  (Could not auto-wire Claude Code; run 'sorryhumans mcp' manually.)")
+
+    # Also wire the Gmail MCP — agent tools for the connected user's own Gmail (if linked).
+    genv = _gmail_mcp_env(key, base)
+    if genv:
+        subprocess.run(["claude", "mcp", "remove", "gmail", "--scope", "user"], capture_output=True)
+        gmail_cmd = [sh_bin, "gmail-mcp"] if sh_bin else [sys.executable or "python3", "-m", "sorryhumans_pkg.gmail_mcp"]
+        env_args = []
+        for k, v in genv.items():
+            env_args += ["--env", f"{k}={v}"]
+        g = subprocess.run(["claude", "mcp", "add", "gmail", "--scope", "user", *env_args, "--", *gmail_cmd],
+                           capture_output=True, text=True)
+        if g.returncode == 0:
+            print("  Connected tools wired (Gmail, if you linked it in the dashboard).")
 
 
 def _wire_mcp_antigravity(key: str, name: str, role: str = "agent", base: str = None) -> None:
@@ -421,6 +452,18 @@ def _wire_mcp_antigravity(key: str, name: str, role: str = "agent", base: str = 
                 "args": ["-m", "sorryhumans_pkg.cli", "mcp"],
                 "env": env,
             }
+        # Also wire the Gmail MCP (tools for the connected user's own Gmail, if linked).
+        genv = _gmail_mcp_env(key, base)
+        if genv:
+            genv = {**genv, "AG_ALLOW_MCP": "true"}
+            if sh_bin:
+                servers["gmail"] = {"command": sh_bin, "args": ["gmail-mcp"], "env": genv}
+            else:
+                servers["gmail"] = {
+                    "command": sys.executable or "python3",
+                    "args": ["-m", "sorryhumans_pkg.gmail_mcp"],
+                    "env": genv,
+                }
         config_path.write_text(_json.dumps(data, indent=2))
         print("  Antigravity CLI (agy) is wired to the hive.")
         print("  Open Antigravity and say: \"check the hive\".")
@@ -818,6 +861,23 @@ def cmd_mcp(args):
     if cfg.get("member_uid"):
         os.environ.setdefault("SORRYHUMANS_MEMBER_UID", cfg["member_uid"])
     from sorryhumans_pkg.mcp_server import mcp
+    mcp.run()
+
+
+def cmd_gmail_mcp(args):
+    """Run the Gmail MCP server (stdio). The connector wiring injects the env
+    (SORRYHUMANS_KEY/TEAM_ID/MEMBER_UID/BUS); we also fall back to the active project."""
+    import os
+    cfg = config.active()
+    if cfg.get("api_key"):
+        os.environ.setdefault("SORRYHUMANS_KEY", cfg["api_key"])
+    if cfg.get("base_url"):
+        os.environ.setdefault("SORRYHUMANS_BUS", cfg["base_url"])
+    if cfg.get("team_id"):
+        os.environ.setdefault("SORRYHUMANS_TEAM_ID", cfg["team_id"])
+    if cfg.get("member_uid"):
+        os.environ.setdefault("SORRYHUMANS_MEMBER_UID", cfg["member_uid"])
+    from sorryhumans_pkg.gmail_mcp import mcp
     mcp.run()
 
 
